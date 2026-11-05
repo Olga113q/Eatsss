@@ -23,7 +23,8 @@ DATA = os.path.join(ROOT, "data", "recipes.js")
 OUT = os.path.join(ROOT, "data", "images.js")
 CACHE = os.path.join(ROOT, "data", "images-cache.json")
 
-WORKERS = 4          # одновременных запросов: не больше, чтобы не нагружать сайт
+WORKERS = int(os.environ.get("WORKERS", 4))   # одновременных запросов: не больше, чтобы не нагружать сайт
+MAX_MINUTES = float(os.environ.get("MAX_MINUTES", 0))  # 0 — без ограничения; иначе остановиться и сохранить
 PAUSE = 0.3          # пауза после каждого запроса, секунд
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -45,7 +46,7 @@ def load_urls():
 
 def find_image(url):
     req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with urllib.request.urlopen(req, timeout=12) as resp:
         page = resp.read(600_000).decode("utf-8", "replace")
     for rx in OG:
         m = rx.search(page)
@@ -81,21 +82,33 @@ def main():
     errors = 0
     started = time.time()
 
+    deadline = started + MAX_MINUTES * 60 if MAX_MINUTES else None
+
     def work(u):
         nonlocal done, errors
+        if deadline and time.time() > deadline:
+            return
         try:
             img = find_image(u)
         except urllib.error.HTTPError as e:
             img = "" if e.code in (404, 410) else None   # None — попробовать в следующий раз
-        except Exception:
+            err = f"HTTP {e.code}"
+        except Exception as e:
             img = None
+            err = f"{type(e).__name__}: {e}"
+        else:
+            err = None
         time.sleep(PAUSE)
         with lock:
             done += 1
             if img is None:
                 errors += 1
+                if errors <= 5:
+                    print(f"  ошибка {u}: {err}")
             else:
                 cache[u] = img
+            if done <= 3:
+                print(f"  {u} -> {img!r}")
             if done % 50 == 0 or done == len(todo):
                 save(cache)
                 speed = done / (time.time() - started)
@@ -111,7 +124,8 @@ def main():
     with lock:
         save(cache)
     found = sum(1 for v in cache.values() if v)
-    print(f"Готово: фото есть у {found} рецептов. Файл: {OUT}")
+    left = sum(1 for u in urls if u not in cache)
+    print(f"Готово: фото есть у {found} рецептов, не обработано: {left}. Файл: {OUT}")
     if errors:
         print(f"{errors} страниц не открылись — запустите скрипт ещё раз, он попробует только их.")
 
