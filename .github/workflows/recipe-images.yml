@@ -16,6 +16,11 @@ on:
 
 permissions:
   contents: write
+  actions: write   # чтобы запустить следующий заход, если собрано не всё
+
+concurrency:
+  group: recipe-images
+  cancel-in-progress: false
 
 jobs:
   fetch:
@@ -23,14 +28,16 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ccr-75b67d4e-vc2cwf
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Fetch photos
+        id: fetch
         run: python3 recipes-app/tools/fetch_images.py
         env:
-          # при push — короткий пробный прогон, вручную — до 100 минут
-          MAX_MINUTES: ${{ inputs.max_minutes || '10' }}
+          MAX_MINUTES: ${{ inputs.max_minutes || '100' }}
       - name: Commit result
         if: always()
         run: |
@@ -41,3 +48,10 @@ jobs:
           git commit -m "Update recipe photos"
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push
+      - name: Start next round if not finished
+        if: always() && steps.fetch.outputs.left != '0' && steps.fetch.outputs.progress != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Осталось: ${{ steps.fetch.outputs.left }} — запускаю следующий заход"
+          gh workflow run recipe-images.yml --ref "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY"

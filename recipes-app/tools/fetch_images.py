@@ -1,5 +1,5 @@
 """Находит фото для рецептов: открывает страницу каждого рецепта на eda.ru
-и берёт оттуда главную картинку (тег og:image).
+и берёт оттуда главное фото блюда (из разметки schema.org/Recipe).
 
 Результат: data/images.js (сайт подхватывает его автоматически).
 Можно прерывать (Ctrl+C) и запускать снова: уже найденное сохраняется
@@ -31,11 +31,32 @@ HEADERS = {
                   "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     "Accept-Language": "ru-RU,ru;q=0.9",
 }
-OG = [
-    re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', re.I),
-    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.I),
-    re.compile(r'"image"\s*:\s*\[?\s*"(https?://[^"]+)"', re.I),
-]
+LD_JSON = re.compile(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', re.S | re.I)
+OG = re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', re.I)
+
+
+def image_from_ld(page):
+    """Фото из разметки Recipe. Предпочитаем вариант 1280x720 (под карточку)."""
+    for m in LD_JSON.finditer(page):
+        try:
+            data = json.loads(m.group(1))
+        except ValueError:
+            continue
+        items = data if isinstance(data, list) else data.get("@graph", [data])
+        for it in items:
+            if not isinstance(it, dict) or it.get("@type") != "Recipe":
+                continue
+            imgs = it.get("image")
+            if isinstance(imgs, (str, dict)):
+                imgs = [imgs]
+            urls = [i if isinstance(i, str) else i.get("url", "") for i in imgs or []]
+            urls = [u for u in urls if u]
+            for u in urls:
+                if "1280x720" in u:
+                    return u
+            if urls:
+                return urls[0]
+    return ""
 
 
 def load_urls():
@@ -46,12 +67,14 @@ def load_urls():
 
 def find_image(url):
     req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=12) as resp:
-        page = resp.read(600_000).decode("utf-8", "replace")
-    for rx in OG:
-        m = rx.search(page)
-        if m:
-            return html.unescape(m.group(1))
+    with urllib.request.urlopen(req, timeout=25) as resp:
+        page = resp.read(5_000_000).decode("utf-8", "replace")
+    img = image_from_ld(page)
+    if img:
+        return img
+    m = OG.search(page)   # og:image на eda.ru — картинка-обложка с надписями, берём только если других нет
+    if m and "img-renderer" not in m.group(1):
+        return html.unescape(m.group(1))
     return ""
 
 
@@ -75,6 +98,10 @@ def main():
     if not todo:
         save(cache)
         print("Готово.")
+        gh_out = os.environ.get("GITHUB_OUTPUT")
+        if gh_out:
+            with open(gh_out, "a") as f:
+                f.write("left=0\nprogress=0\n")
         return
 
     lock = threading.Lock()
@@ -126,6 +153,10 @@ def main():
     found = sum(1 for v in cache.values() if v)
     left = sum(1 for u in urls if u not in cache)
     print(f"Готово: фото есть у {found} рецептов, не обработано: {left}. Файл: {OUT}")
+    gh_out = os.environ.get("GITHUB_OUTPUT")
+    if gh_out:   # для GitHub Actions: сколько осталось и был ли прогресс
+        with open(gh_out, "a") as f:
+            f.write(f"left={left}\nprogress={done - errors}\n")
     if errors:
         print(f"{errors} страниц не открылись — запустите скрипт ещё раз, он попробует только их.")
 
