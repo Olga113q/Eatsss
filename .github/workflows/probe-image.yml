@@ -1,0 +1,23 @@
+name: Probe image (temporary)
+on:
+  push:
+    branches: [ccr-75b67d4e-vc2cwf]
+    paths: [.github/workflows/probe-image.yml]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p probe
+          for id in 34923 19134; do
+            curl -sSL -m 60 -A "Mozilla/5.0" -o probe/$id.png -w "$id %{http_code} %{content_type} %{size_download}\n" \
+              "https://img-renderer.rambler.ru/api/generate/media/?recipeId=$id&projectId=22&format=png" || true
+          done
+          file probe/* || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add probe && git commit -m "Probe images (temporary)" && git pull --rebase origin "$GITHUB_REF_NAME" && git push
