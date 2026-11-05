@@ -13,6 +13,23 @@
   const BY_NAME = new Map(PRODUCTS.map((p) => [p.name, p]));
   const IGNORE = new Set(D.ignore.map((n) => BY_NAME.get(n)?.id).filter((x) => x !== undefined));
   const SPICE_CATS = new Set(["Специи", "Зелень"]);
+  const IMAGES = window.RECIPE_IMAGES || {};
+  const COURSE_ICON = {
+    "Выпечка и десерты": "🍰", "Основные блюда": "🍲", "Закуски": "🥟", "Супы": "🍜", "Салаты": "🥗",
+    "Завтраки": "🍳", "Паста и пицца": "🍝", "Напитки": "🍹", "Соусы и маринады": "🥫", "Сэндвичи": "🥪",
+    "Ризотто": "🍚", "Заготовки": "🫙", "Бульоны": "🍵",
+  };
+  const COURSE_BG = {
+    "Выпечка и десерты": "#fde2e4", "Основные блюда": "#ffe8cc", "Закуски": "#fff3bf", "Супы": "#ffd8a8",
+    "Салаты": "#d3f9d8", "Завтраки": "#fff9db", "Паста и пицца": "#ffe3e3", "Напитки": "#d0ebff",
+  };
+  const pic = (r, cls) => {
+    const icon = `<div class="${cls} ph noimg" style="background:${COURSE_BG[r.course] || "#f1ebe3"}"><span>${COURSE_ICON[r.course] || "🍽️"}</span></div>`;
+    const url = IMAGES[r.u];
+    if (!url) return icon;
+    return `<div class="${cls} ph" style="background:${COURSE_BG[r.course] || "#f1ebe3"}"><span>${COURSE_ICON[r.course] || "🍽️"}</span>
+      <img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div>`;
+  };
 
   const RECIPES = D.recipes.map((r, id) => {
     const course = r.c[0] || "";
@@ -268,6 +285,8 @@
     const pct = total ? Math.round((matched / total) * 100) : 100;
     const miss = missing.map((pid) => esc(PRODUCTS[pid].name)).join(", ");
     return `<article class="card" data-rid="${r.id}">
+      ${pic(r, "thumb")}
+      <div class="card-body">
       <div class="card-top">
         <h3>${esc(r.t)}</h3>
         <button class="star ${favs.has(r.id) ? "on" : ""}" data-fav="${r.id}" title="В избранное">★</button>
@@ -276,6 +295,7 @@
       <div class="bar"><span style="width:${pct}%"></span></div>
       <div class="have-line">Есть ${matched} из ${total}</div>
       ${missing.length ? `<div class="miss">Не хватает: ${miss}</div>` : '<div class="ok">✓ Всё есть</div>'}
+      </div>
     </article>`;
   }
 
@@ -320,6 +340,7 @@
     }).join("");
     const missing = evaluate(r).missing;
     $("modal-body").innerHTML = `
+      ${IMAGES[r.u] ? pic(r, "hero") : ""}
       <h2>${esc(r.t)}</h2>
       <div class="meta">${[r.course, r.cuisine, r.tm && "⏱ " + r.tm, r.n && r.n + " " + plural(r.n, "порция", "порции", "порций"), r.k && r.k + " ккал/порц."].filter(Boolean).map(esc).join(" · ")}</div>
       <div class="modal-actions">
