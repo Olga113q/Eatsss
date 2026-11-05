@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Что приготовить?</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>🍳 Что приготовить?</h1>
+  <div class="top-actions">
+    <button id="btn-fav" class="ghost" title="Избранные рецепты">★<span class="lbl"> Избранное</span> <span id="fav-count"></span></button>
+    <button id="btn-shop" class="ghost" title="Список покупок">🛒<span class="lbl"> Покупки</span> <span id="shop-count"></span></button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="pantry" id="pantry">
+    <div class="pantry-head">
+      <h2>Мои продукты <span id="have-count" class="badge"></span></h2>
+      <button id="toggle-pantry" class="ghost mobile-only">Свернуть</button>
+    </div>
+    <div class="pantry-body" id="pantry-body">
+      <div class="search-wrap">
+        <input id="product-search" type="search" placeholder="Найти продукт: курица, рис, сметана…" autocomplete="off">
+        <ul id="suggest" class="suggest" hidden></ul>
+      </div>
+      <div id="selected" class="selected"></div>
+      <div class="pantry-tools">
+        <label><input type="checkbox" id="opt-spices"> Специи и травы не учитывать</label>
+        <button id="clear-all" class="link">Очистить всё</button>
+      </div>
+      <div id="categories"></div>
+    </div>
+  </aside>
+
+  <main class="results" id="results">
+    <div class="filters">
+      <input id="title-search" type="search" placeholder="Поиск по названию рецепта">
+      <select id="f-course"><option value="">Все блюда</option></select>
+      <select id="f-cuisine"><option value="">Любая кухня</option></select>
+      <select id="f-time">
+        <option value="">Любое время</option>
+        <option value="15">до 15 мин</option>
+        <option value="30">до 30 мин</option>
+        <option value="60">до 1 часа</option>
+        <option value="120">до 2 часов</option>
+      </select>
+      <select id="f-missing">
+        <option value="0">Всё есть</option>
+        <option value="1" selected>Не хватает ≤ 1</option>
+        <option value="2">Не хватает ≤ 2</option>
+        <option value="3">Не хватает ≤ 3</option>
+        <option value="99">Все рецепты</option>
+      </select>
+      <label class="fav-only"><input type="checkbox" id="f-fav"> только ★</label>
+    </div>
+    <div id="summary" class="summary"></div>
+    <div id="list" class="list"></div>
+    <button id="more" class="more" hidden>Показать ещё</button>
+  </main>
+</div>
+
+<button id="to-results" class="to-results mobile-only">Показать рецепты</button>
+
+<dialog id="modal">
+  <div class="modal-inner">
+    <button class="close" id="modal-close" aria-label="Закрыть">✕</button>
+    <div id="modal-body"></div>
+  </div>
+</dialog>
+
+<script src="data/recipes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
