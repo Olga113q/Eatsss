@@ -13,11 +13,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           mkdir -p probe
-          for id in 34923 19134; do
-            curl -sSL -m 60 -A "Mozilla/5.0" -o probe/$id.png -w "$id %{http_code} %{content_type} %{size_download}\n" \
-              "https://img-renderer.rambler.ru/api/generate/media/?recipeId=$id&projectId=22&format=png" || true
+          for u in https://eda.ru/recepty/osnovnye-blyuda/lenivie-golubci-v-tomatnom-souse-34923 https://eda.ru/recepty/zakuski/brokkoli-s-mussom-iz-sira-19134; do
+            curl -sSL -m 90 --retry 3 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0 Safari/537.36" -o "probe/$(basename $u).html" -w "$u %{http_code} %{size_download}\n" "$u" || true
           done
           file probe/* || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add probe && git commit -m "Probe images (temporary)" && git pull --rebase origin "$GITHUB_REF_NAME" && git push
+          git add probe && git commit -m "Probe pages (temporary)" && git pull --rebase origin "$GITHUB_REF_NAME" && git push
