@@ -31,6 +31,10 @@
       <img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div>`;
   };
 
+  const MIN_INGREDIENTS = 4;
+  const BASE_COURSES = new Set(["Напитки", "Соусы и маринады", "Заготовки", "Бульоны"]);
+  const BASE_TITLE = /^(тесто|крем|глазурь|соус|маринад|заправка|сироп|бульон|начинка|карамель|ганаш|майонез|кетчуп|песто|паста из|масло|сливочный крем|основа|корж|бисквит для|пропитка|подлива|подливка)\b/;
+
   const RECIPES = D.recipes.map((r, id) => {
     const course = r.c[0] || "";
     const cuisine = r.c.find((c) => c.endsWith("кухня")) || "";
@@ -40,7 +44,13 @@
       if (IGNORE.has(pid)) continue;
       (optional ? opt : req).push(pid);
     }
-    return { ...r, id, course, cuisine, req: [...new Set(req)], opt, lc: r.t.toLowerCase().replace(/ё/g, "е") };
+    const reqU = [...new Set(req)];
+    const lc = r.t.toLowerCase().replace(/ё/g, "е");
+    // «не блюдо»: напитки, соусы, заготовки, основы (тесто, крем, глазурь…) и совсем простые рецепты
+    const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc);
+    const isSimple = reqU.length < MIN_INGREDIENTS;
+    const textLen = r.s.reduce((n, st) => n + st.length, 0);
+    return { ...r, id, course, cuisine, req: reqU, opt, lc, minor: isBase || isSimple, textLen };
   });
 
   // ---------- состояние (сохраняется в браузере) ----------
@@ -212,7 +222,10 @@
   fill($("f-cuisine"), count(RECIPES.map((r) => r.cuisine)));
   $("f-missing").value = settings.missing;
 
-  for (const id of ["title-search", "f-course", "f-cuisine", "f-time", "f-missing", "f-fav"]) {
+  $("f-meals").checked = settings.mealsOnly !== false;
+  $("f-meals").addEventListener("change", (e) => { settings.mealsOnly = e.target.checked; saveSettings(); });
+
+  for (const id of ["title-search", "f-course", "f-cuisine", "f-time", "f-missing", "f-fav", "f-meals"]) {
     $(id).addEventListener(id === "title-search" ? "input" : "change", () => {
       if (id === "f-missing") { settings.missing = $(id).value; saveSettings(); }
       update();
@@ -246,10 +259,12 @@
     const maxTime = +$("f-time").value || Infinity;
     const maxMissing = +$("f-missing").value;
     const favOnly = $("f-fav").checked;
+    const mealsOnly = $("f-meals").checked && !q && !favOnly;
 
     results = [];
     for (const r of RECIPES) {
       if (course && r.course !== course) continue;
+      if (mealsOnly && r.minor && !(course && BASE_COURSES.has(course))) continue;
       if (cuisine && r.cuisine !== cuisine) continue;
       if (r.m && r.m > maxTime) continue;
       if (maxTime !== Infinity && !r.m) continue;
@@ -260,10 +275,13 @@
       if (maxMissing < 99 && ev.mine === 0 && !q && !favOnly) continue; // рецепт не использует ничего из ваших продуктов
       results.push(ev);
     }
+    // сначала то, где всего хватает; затем — где задействовано больше ваших продуктов;
+    // затем более «полноценные» рецепты (больше ингредиентов и подробнее описание)
     results.sort((a, b) =>
       a.missing.length - b.missing.length ||
       b.mine - a.mine ||
-      (a.r.m || 999) - (b.r.m || 999));
+      Math.min(b.total, 10) - Math.min(a.total, 10) ||
+      b.r.textLen - a.r.textLen);
     render();
   }
 
@@ -272,6 +290,7 @@
     const n = results.length;
     let summary = `Найдено ${n} ${plural(n, "рецепт", "рецепта", "рецептов")}`;
     if (!nonBasic) summary = "Отметьте слева продукты, которые есть дома, и здесь появятся рецепты. " + (n ? summary : "");
+    else if (n < 20 && +$("f-missing").value < 3) summary += ". Мало? Отметьте больше продуктов или разрешите больше недостающих";
     $("summary").textContent = summary;
 
     $("list").innerHTML = results.slice(0, shownN).map(card).join("") ||
