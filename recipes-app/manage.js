@@ -109,20 +109,6 @@
 
   const refresh = () => { shown = PAGE; filterItems(); render(); };
 
-  // «Мне не подходит»: переключатели правил (recipe-prefs.js). Правила пересчитываются при загрузке — перезагружаем.
-  if (window.RECIPE_PREFS) {
-    const pr = window.RECIPE_PREFS.prefs();
-    $("m-prefs-body").innerHTML = window.RECIPE_PREFS.RULES.map(([id, name]) =>
-      `<label class="pref"><input type="checkbox" data-pref="${id}" ${pr[id] ? "checked" : ""}> ${esc(name)}</label>`).join("");
-    $("m-prefs-body").addEventListener("change", (e) => {
-      const id = e.target.dataset.pref;
-      if (!id) return;
-      window.RECIPE_PREFS.setPref(id, e.target.checked);
-      location.reload();
-    });
-  } else {
-    $("m-prefs").hidden = true;
-  }
 
   $("m-search").addEventListener("input", refresh);
   $("m-tabs").addEventListener("click", (e) => {

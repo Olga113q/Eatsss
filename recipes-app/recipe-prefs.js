@@ -1,7 +1,7 @@
-// «Мне не подходит» и цена блюда. Подключается после data/recipes.js, recipe-edits.js и data/plan.js.
+// «Не подходит» и цена блюда. Подключается после data/recipes.js, recipe-edits.js, data/plan.js, data/not-for-me.js.
 //
-// Предпочтения (переключатели на странице «Мои рецепты», localStorage wtc:prefs) помечают рецепт r.d = причина —
-// такой рецепт не предлагается ни в подборе, ни в плане. wtc:allow — рецепты, которые пользователь вернул вручную.
+// Рецепты из data/not-for-me.js помечаются r.d = причина — не предлагаются ни в подборе, ни в плане.
+// wtc:allow — рецепты, которые пользователь вернул вручную («Всё равно показывать»).
 // window.recipeCost(id) — примерная стоимость рецепта по самой дешёвой цене каждого продукта (data/plan.js).
 (() => {
   "use strict";
@@ -15,57 +15,20 @@
   const IGNORE = new Set(D.ignore.map(pid));
   const key = window.RECIPE_KEY || ((r) => r.u || r.t);
 
-  // ---------- предпочтения ----------
-  const RULES = [
-    ["fish", "Без рыбы", "рыба"],
-    ["pepper", "Без блюд, где основа — жареный/тушёный болгарский перец", "много перца"],
-    ["onion", "Без блюд, где основа — жареный/варёный лук", "много лука"],
-    ["tofu", "Без тофу", "тофу"],
-    ["nomeat", "Основные блюда и супы — только с мясом", "нет мяса"],
-  ];
-  const DEFAULTS = { fish: true, pepper: true, onion: true, tofu: true, nomeat: true };
-  const prefs = Object.assign({}, DEFAULTS, get("prefs", {}));
+  // ---------- «не подходит»: список, составленный вручную (data/not-for-me.js) ----------
+  // рыба, блюда на жареном/тушёном болгарском перце или луке, тофу. Блюда без мяса не скрываем —
+  // в плане к ним добавляется мясная добавка (planner.js).
+  const NFM = window.NOT_FOR_ME || {};
   const allow = new Set(get("allow", []));
-
-  const SEAFOOD = new Set(["Креветки", "Кальмары", "Мидии / морепродукты", "Крабовые палочки"]); // это не «рыба»
-  const FISH = new Set(names.map((n, i) => (cats[i] === "Рыба и морепродукты" && !SEAFOOD.has(n) ? i : -1)).filter((i) => i >= 0));
-  const MEAT = new Set(cats.map((c, i) => (c === "Мясо и птица" ? i : -1)).filter((i) => i >= 0));
-  const PEP = pid("Болгарский перец"), ONION = pid("Лук репчатый"), TOFU = pid("Тофу");
-  const MAINC = new Set(["Основные блюда", "Паста и пицца", "Ризотто", "Супы"]);
-
-  function reasonOf(rid) {
-    const r = D.recipes[rid];
-    const course = r.c[0] || "";
-    const req = new Set(r.i.filter((i) => !i[3]).map((i) => i[0]));
-    const q = new Map(P ? P.qty[rid] : []);
-    let total = 0;
-    for (const v of q.values()) total += v;
-    total = total || 1;
-    const t = r.t.toLowerCase().replace(/\s+/g, " ");
-    const out = [];
-    if (prefs.fish && [...req].some((p) => FISH.has(p))) out.push("fish");
-    // перец/лук — основа приготовленного блюда: в названии или ≥15–20% веса продуктов (в салатах — свежие, не трогаем)
-    if (prefs.pepper && course !== "Салаты" && req.has(PEP) &&
-        ((/перц|перец/.test(t) && !/черн\w* перц|перцем черн|перец черн/.test(t)) || (q.get(PEP) || 0) / total >= 0.15)) out.push("pepper");
-    if (prefs.onion && course !== "Салаты" && req.has(ONION) &&
-        (/(?<![а-яё])лук(?!-порей)|луков/.test(t) || (q.get(ONION) || 0) / total >= 0.2)) out.push("onion");
-    if (prefs.tofu && req.has(TOFU)) out.push("tofu");
-    if (prefs.nomeat && MAINC.has(course) && ![...req].some((p) => MEAT.has(p))) out.push("nomeat");
-    return out;
+  for (const r of D.recipes) {
+    const k = key(r);
+    if (NFM[k] && !allow.has(k)) r.d = NFM[k];
   }
 
-  const LABEL = Object.fromEntries(RULES.map(([id, , short]) => [id, short]));
-  D.recipes.forEach((r, rid) => {
-    if (allow.has(key(r))) return;
-    const why = reasonOf(rid);
-    if (why.length) r.d = why.map((w) => LABEL[w]).join(", ");
-  });
-
   window.RECIPE_PREFS = {
-    RULES, prefs: () => Object.assign({}, prefs),
-    setPref(id, on) { const p = Object.assign({}, DEFAULTS, get("prefs", {})); p[id] = on; set("prefs", p); },
     allow(k, on) { const a = new Set(get("allow", [])); if (on) a.add(k); else a.delete(k); set("allow", [...a]); },
     allowed: () => new Set(get("allow", [])),
+    count: () => Object.keys(NFM).length,
   };
 
   // ---------- цена блюда ----------

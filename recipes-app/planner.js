@@ -220,9 +220,12 @@
       else if (DOUGH.has(pid)) dough += doughIsSide ? g : 0; // хлеб/мука в котлетах — не гарнир
       else if (pid === EGGS) eggs += g;
     }
+    // белок — мясо, птица, морепродукты. Яйца и бобовые — только при вегетарианском/постном питании:
+    // иначе к блюду из грибов, сыра или фасоли план добавит что-то мясное (сосиски, филе, котлеты)
+    const meat = prot >= 40, alt = eggs >= 1.5 || leg >= 60;
     const c = {
-      protein: prot >= 40 || eggs >= 1.5 || leg >= 60,
-      side: dry * 3 + bulk + dough * 2 + leg * 3 >= 100,
+      get protein() { return meat || (alt && (settings.diet === "Постн" || settings.diet === "Вегетарианск")); },
+      side: dry * 3 + bulk + dough * 2 + leg * 3 >= 100 || (alt && !meat),
     };
     compCache.set(rid, c);
     return c;

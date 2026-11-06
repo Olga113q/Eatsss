@@ -5,7 +5,7 @@ const APP = "app-" + VERSION;
 const IMG = "img-" + VERSION;
 const SHELL = ["./", "index.html", "app.js", "planner.js", "app-update.js", "style.css", "manifest.webmanifest",
   "manage.html", "manage.js", "recipe-edits.js", "recipe-prefs.js",
-  "data/recipes.js", "data/steps.js", "data/plan.js", "data/images.js", "icons/icon-192.png", "icons/icon-512.png"];
+  "data/recipes.js", "data/steps.js", "data/plan.js", "data/not-for-me.js", "data/images.js", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(APP).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
