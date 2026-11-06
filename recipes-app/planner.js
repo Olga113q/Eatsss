@@ -30,10 +30,12 @@
   let plan = A.store.get("plan", null); // {slots:[{day, meal, rid}], settings}
 
   // ---------- цены и корзина ----------
+  // реальные цены выбранного магазина; если их нет — примерная цена (store = "approx")
   const offersFor = (pid) => {
     const x = OFFERS.get(pid);
     if (!x) return [];
-    return settings.store === "best" ? x.o : x.o.filter((o) => o[0] === settings.store);
+    const real = x.o.filter((o) => o[0] !== "approx" && (settings.store === "best" || o[0] === settings.store));
+    return real.length ? real : x.o.filter((o) => o[0] === "approx");
   };
 
   // как купить need единиц продукта дешевле всего: одним видом упаковки
@@ -180,8 +182,10 @@
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 
   function form() {
-    const storeOpts = [["best", "Где дешевле"]].concat(Object.entries(STORES).map(([id, s]) => [id, s.name]));
-    const sdates = Object.values(STORES).map((s) => `${s.name}: ${s.address || "—"}, цены от ${s.date}`).join("<br>");
+    const real = Object.entries(STORES).filter(([id]) => id !== "approx");
+    const storeOpts = [["best", "Где дешевле"]].concat(real.map(([id, s]) => [id, s.name]));
+    const sdates = real.map(([, s]) => s).map((s) => `${s.name}: ${s.address || "—"}, цены от ${s.date}`).join("<br>") +
+      "<br>≈ — примерная цена: продукта нет в собранных ценах магазинов, взята ориентировочная цена по СПб.";
     return `
       <h2>📅 План на неделю</h2>
       <div class="plan-form">
@@ -210,9 +214,11 @@
       const b = basketOf(plan.slots);
       const per = b.total / Math.max(1, plan.slots.length * settings.people);
       const over = b.total > settings.budget;
+      const approx = b.lines.filter((l) => l.offer && l.offer[0] === "approx").reduce((n, l) => n + l.cost, 0);
       html += `<div class="plan-total ${over ? "over" : ""}">
         Итого корзина: <b>${rub(b.total)}</b> из ${rub(settings.budget)}
         · ~${rub(per)} на порцию
+        ${approx ? `<br><span class="muted">из них ≈${rub(approx)} — по примерным ценам (этих продуктов нет в собранных ценах магазинов)</span>` : ""}
         ${over ? "<br>Не влезает в бюджет даже с самыми дешёвыми блюдами — уменьшите число дней/приёмов пищи или увеличьте бюджет." : ""}
         ${b.unpriced.size ? `<br><span class="muted">Без цены (не посчитано): ${[...b.unpriced].map((p) => esc(PRODUCTS[p].name)).join(", ")}</span>` : ""}
       </div>`;
@@ -243,17 +249,22 @@
     const buyLines = b.lines.filter((l) => l.offer).sort((a, c) => c.cost - a.cost);
     const byStore = {};
     for (const l of buyLines) byStore[l.offer[0]] = (byStore[l.offer[0]] || 0) + l.cost;
+    if (byStore.approx) { byStore["≈ примерно"] = byStore.approx; delete byStore.approx; }
     const unit = (pid) => (OFFERS.get(pid) || {}).u || "g";
     let html = `<h3>Корзина</h3>`;
     if (Object.keys(byStore).length > 1) {
-      html += `<p class="muted">${Object.entries(byStore).map(([s, c]) => `${esc(STORES[s].name)}: ${rub(c)}`).join(" · ")}</p>`;
+      html += `<p class="muted">${Object.entries(byStore).map(([s, c]) => `${esc(STORES[s] ? STORES[s].name : s)}: ${rub(c)}`).join(" · ")}</p>`;
     }
     html += `<table class="plan-cart">` + buyLines.map((l) => `<tr>
         <td><b>${esc(PRODUCTS[l.pid].name)}</b><br><span class="muted">нужно ~${fmtQty(l.need, unit(l.pid))}</span></td>
-        <td>${l.offer[4] ? `<a href="${esc(l.offer[4])}" target="_blank" rel="noopener">${esc(l.offer[1])}</a>` : esc(l.offer[1])}
+        ${l.offer[0] === "approx"
+          ? `<td><span class="approx">≈ примерная цена</span><br><span class="muted">упаковка ~${fmtQty(l.offer[3], unit(l.pid))}, в собранных ценах магазинов нет</span></td>
+             <td class="num">${l.packs} × ≈${rub(l.offer[2])}</td>
+             <td class="num"><b>≈${rub(l.cost)}</b></td>`
+          : `<td>${l.offer[4] ? `<a href="${esc(l.offer[4])}" target="_blank" rel="noopener">${esc(l.offer[1])}</a>` : esc(l.offer[1])}
           <br><span class="muted">${esc(STORES[l.offer[0]].name)}${l.offer[5] ? " · по карте" : ""}</span></td>
         <td class="num">${l.packs} × ${rub(l.offer[2])}</td>
-        <td class="num"><b>${rub(l.cost)}</b></td>
+        <td class="num"><b>${rub(l.cost)}</b></td>`}
       </tr>`).join("") + `</table>`;
     const pantry = b.lines.filter((l) => l.pantry);
     if (pantry.length) html += `<p class="muted">Есть дома (не покупаем): ${pantry.map((l) => `${esc(PRODUCTS[l.pid].name)} ~${fmtQty(l.need, unit(l.pid))}`).join(", ")}</p>`;
@@ -294,9 +305,9 @@
       const b = basketOf(plan.slots);
       const unit = (pid) => (OFFERS.get(pid) || {}).u || "g";
       A.addToShop(b.lines.filter((l) => l.offer).map((l) => ({
-        name: `${PRODUCTS[l.pid].name}: ${l.offer[1]} × ${l.packs}`,
+        name: l.offer[0] === "approx" ? `${PRODUCTS[l.pid].name} ~${fmtQty(l.need, unit(l.pid))}` : `${PRODUCTS[l.pid].name}: ${l.offer[1]} × ${l.packs}`,
         product: PRODUCTS[l.pid].name,
-        from: `план, ~${fmtQty(l.need, unit(l.pid))}, ${STORES[l.offer[0]].name}`,
+        from: `план, ~${fmtQty(l.need, unit(l.pid))}, ${l.offer[0] === "approx" ? "цена примерная" : STORES[l.offer[0]].name}`,
       })));
       e.target.textContent = "✓ Добавлено";
       e.target.disabled = true;

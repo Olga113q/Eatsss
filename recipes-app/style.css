@@ -211,3 +211,5 @@ dialog h3 { margin: 18px 0 8px; }
   .plan-cart td:nth-child(2) { font-size: 12px; }
   .plan-form input[type=number], .plan-form select { width: 100px; }
 }
+
+.approx { color: #b35c00; font-weight: 600; }
