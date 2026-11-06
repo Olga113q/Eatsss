@@ -52,6 +52,11 @@ APK: https://github.com/Olga113q/Eatsss/releases/download/android/chto-prigotovi
 `android-app/keystore/debug.keystore`, workflow сверяет SHA256 сертификата. На телефоне со старой сборкой нужно
 ОДИН раз удалить приложение и поставить новую (выбранные продукты/план в нём сбросятся), дальше — поверх.
 
+**Обновления APK (со сборки 5):** CI вписывает номер сборки в User-Agent («ChtoPrigotovitApp/N»,
+`appendUserAgent` в capacitor.config.json); `recipes-app/app-update.js` сравнивает его с «сборка N» в названии
+релиза `android` (GitHub API) и показывает плашку «Скачать / Позже»; ссылка открывается в браузере телефона.
+Работает, только пока репозиторий публичный (Pages и релиз без авторизации). Отладка: `__checkAppUpdate(1)`.
+
 Эмулятор на ПК: SDK в `D:\Android\Sdk` (adb, emulator, образ android-35 google_apis x86_64), JDK 17 в
 `D:\Android\jdk17`, AVD `pixel35` в `D:\Android\avd`. Запуск:
 `set ANDROID_AVD_HOME=D:\Android\avd` и `D:\Android\Sdk\emulator\emulator.exe -avd pixel35`.
