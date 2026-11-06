@@ -337,8 +337,7 @@
     const addUsed = new Map();
     for (const s2 of chosen) for (const a of s2.add || []) addUsed.set(a, (addUsed.get(a) || 0) + 1);
     for (const r of pool) {
-      if (used.has(r.id) || r.id === opts.exclude) continue;
-      if (familyOf(r) && families.has(familyOf(r))) continue; // второй плов/борщ/лазанья за неделю — нет
+      if (used.has(r.id) || r.id === opts.exclude || (opts.skip && opts.skip.has(r.id))) continue;
       // к блюду подбираем добавку (гарнир или белок), которая выгоднее всего с учётом уже купленного
       const P_ = servingsOf(r.id);
       let bestAdd = null;
@@ -365,11 +364,30 @@
         const usesLeft = r.req.some((p) => leftPids.has(p)); // доедает купленное — повтор курицы не страшен
         if (pr && !usesLeft && (proteins.get(pr) || 0) >= 2) score += 200;
         if ((groups.get(groupOf(r)) || 0) >= 1) score += 60;
+        // второй плов/борщ за неделю — нежелательно, но можно (не понравится — «заменить»)
+        if (familyOf(r) && families.has(familyOf(r))) score += 150;
         if (!opts.stable) score *= 0.8 + Math.random() * 0.5; // немного случайности, чтобы меню было разным
       }
       if (!best || score < best.score) best = { rid: r.id, add: bestAdd.add, score };
     }
     return best ? { rid: best.rid, add: best.add } : undefined;
+  }
+
+  // «Заменить» блюдо: если в корзине целая тушка, а заменяемое блюдо было на её часть (грудку, ножки, крылья
+  // или курицу целиком), новое блюдо подбираем на ту же часть — иначе купленная курица останется лежать.
+  function replaceCandidates(i) {
+    const s = plan.slots[i];
+    const all = candidates(s.meal);
+    if (CH.whole === null) buyChicken(new Map()); // заполнить CH (id частей курицы)
+    const b = basketOf(plan.slots);
+    if (!b.lines.some((l) => l.cut)) return all; // тушку не покупаем — обычная замена
+    const parts = ["whole", "fillet", "legs", "wings"].map((k) => CH[k]).filter((p) => p !== undefined);
+    const used = RECIPES[s.rid].req.filter((p) => parts.includes(p));
+    if (!used.length) return all;
+    const same = all.filter((r) => used.every((p) => r.req.includes(p)));
+    if (same.length) return same;
+    const some = all.filter((r) => used.some((p) => r.req.includes(p)));
+    return some.length ? some : all;
   }
 
   function makePlan() {
@@ -603,7 +621,10 @@
     if (rr) {
       const i = +rr.dataset.reroll;
       const s = plan.slots[i];
-      const p = pick(plan.slots, i, s.meal, candidates(s.meal), { exclude: s.rid });
+      // уже показанные на этом месте блюда не предлагаем снова (последние 15), чтобы замены не ходили по кругу
+      s.skip = (s.skip || []).concat([s.rid]).slice(-15);
+      let p = pick(plan.slots, i, s.meal, replaceCandidates(i), { exclude: s.rid, skip: new Set(s.skip) });
+      if (!p) { s.skip = [s.rid]; p = pick(plan.slots, i, s.meal, replaceCandidates(i), { exclude: s.rid }); } // всё перебрали — по новой
       if (p) { Object.assign(s, p); A.store.set("plan", plan); render(); }
       return;
     }
