@@ -173,3 +173,23 @@ dialog h3 { margin: 18px 0 8px; }
   .top h1 { font-size: 17px; }
   .top-actions .ghost { padding: 4px 8px; font-size: 13px; }
 }
+
+/* ---- списки с галочками ---- */
+.ms { position: relative; flex: 1 1 140px; }
+.ms-btn {
+  width: 100%; text-align: left; padding: 8px 28px 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative;
+}
+.ms-btn::after { content: "▾"; position: absolute; right: 10px; color: var(--muted); }
+.ms-btn.on { border-color: var(--accent); background: var(--accent-soft); }
+.ms-panel {
+  position: absolute; z-index: 15; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 320px;
+  max-height: 340px; overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px #0002; padding: 6px 0;
+}
+.ms-panel label { display: flex; gap: 8px; align-items: center; padding: 5px 12px; cursor: pointer; font-size: 14px; }
+.ms-panel label:hover { background: var(--accent-soft); }
+.ms-panel .muted { margin-left: auto; }
+.ms-clear { display: block; margin: 2px 12px 6px auto; }
+.filters .ms-panel input { flex: none; width: auto; margin: 0; padding: 0; }
+.ms-panel label { text-align: left; white-space: nowrap; }

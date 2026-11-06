@@ -38,26 +38,11 @@
   <main class="results" id="results">
     <div class="filters">
       <input id="title-search" type="search" placeholder="Поиск по названию рецепта">
-      <select id="f-meal" title="На какой приём пищи">
-        <option value="">Любой приём пищи</option>
-        <option value="breakfast">Завтрак</option>
-        <option value="lunch">Обед</option>
-        <option value="dinner">Ужин</option>
-        <option value="snack">Перекус / к чаю</option>
-        <option value="dessert">Десерт</option>
-        <option value="party">Праздничный стол</option>
-      </select>
-      <select id="f-diet" title="Особое питание">
-        <option value="">Без ограничений</option>
-        <option value="Постн">Постное</option>
-        <option value="Вегетарианск">Вегетарианское</option>
-        <option value="Веганск">Веганское</option>
-        <option value="Низкокалорийн">Низкокалорийное</option>
-        <option value="Детск">Детское меню</option>
-      </select>
-      <select id="f-course"><option value="">Все блюда</option></select>
-      <select id="f-tag" title="Подраздел eda.ru"><option value="">Все подразделы</option></select>
-      <select id="f-cuisine"><option value="">Любая кухня</option></select>
+      <div class="ms" id="f-meal" data-ph="Любой приём пищи"></div>
+      <div class="ms" id="f-diet" data-ph="Без ограничений"></div>
+      <div class="ms" id="f-course" data-ph="Все блюда"></div>
+      <div class="ms" id="f-tag" data-ph="Все подразделы"></div>
+      <div class="ms" id="f-cuisine" data-ph="Любая кухня"></div>
       <select id="f-time">
         <option value="">Любое время</option>
         <option value="15">до 15 мин</option>

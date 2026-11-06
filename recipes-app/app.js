@@ -238,35 +238,82 @@
 
   // ---------- фильтры ----------
   const count = (arr) => arr.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map());
-  const fill = (sel, map) => {
-    [...map].sort((a, b) => b[1] - a[1]).forEach(([v, n]) => {
-      if (v) sel.insertAdjacentHTML("beforeend", `<option value="${esc(v)}">${esc(v)} (${n})</option>`);
-    });
-  };
-  fill($("f-course"), count(RECIPES.map((r) => r.course)));
-  fill($("f-cuisine"), count(RECIPES.map((r) => r.cuisine)));
+  // выпадающий список с галочками: el.values — Set отмеченных значений
+  function multi(id, items) {
+    const el = $(id);
+    if (!el.values) {
+      el.values = new Set();
+      el.innerHTML = `<button type="button" class="ms-btn"></button><div class="ms-panel" hidden></div>`;
+      const btn = el.querySelector(".ms-btn");
+      const panel = el.querySelector(".ms-panel");
+      btn.addEventListener("click", () => {
+        const open = panel.hidden;
+        document.querySelectorAll(".ms-panel").forEach((x) => (x.hidden = true));
+        panel.hidden = !open;
+      });
+      panel.addEventListener("change", (e) => {
+        const v = e.target.value;
+        if (e.target.checked) el.values.add(v); else el.values.delete(v);
+        label();
+        el.dispatchEvent(new Event("ms-change"));
+      });
+      panel.addEventListener("click", (e) => {
+        if (!e.target.closest(".ms-clear")) return;
+        el.values.clear();
+        panel.querySelectorAll("input").forEach((i) => (i.checked = false));
+        label();
+        el.dispatchEvent(new Event("ms-change"));
+      });
+    }
+    const valid = new Set(items.map((x) => x.value));
+    for (const v of [...el.values]) if (!valid.has(v)) el.values.delete(v);
+    el.labels_ = new Map(items.map((x) => [x.value, x.short || x.label]));
+    el.querySelector(".ms-panel").innerHTML =
+      `<button type="button" class="link small ms-clear">сбросить</button>` +
+      items.map((x) => `<label><input type="checkbox" value="${esc(x.value)}" ${el.values.has(x.value) ? "checked" : ""}>
+        ${esc(x.label)}${x.n ? ` <span class="muted">${x.n}</span>` : ""}</label>`).join("");
+    function label() {
+      const names = [...el.values].map((v) => el.labels_.get(v) || v);
+      const btn = el.querySelector(".ms-btn");
+      btn.textContent = names.length ? (names.length <= 2 ? names.join(", ") : `${names[0]} и ещё ${names.length - 1}`) : el.dataset.ph;
+      btn.classList.toggle("on", names.length > 0);
+    }
+    label();
+    return el;
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".ms")) document.querySelectorAll(".ms-panel").forEach((x) => (x.hidden = true));
+  });
 
-  // подразделы eda.ru (котлеты, борщ, пироги…) — список зависит от выбранного типа блюда
+  const byCount = (map) => [...map].filter(([v]) => v).sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ value: v, label: v, n }));
+  multi("f-meal", [
+    { value: "breakfast", label: "Завтрак" }, { value: "lunch", label: "Обед" }, { value: "dinner", label: "Ужин" },
+    { value: "snack", label: "Перекус / к чаю" }, { value: "dessert", label: "Десерт" }, { value: "party", label: "Праздничный стол" },
+  ]);
+  multi("f-diet", [
+    { value: "Постн", label: "Постное" }, { value: "Вегетарианск", label: "Вегетарианское" }, { value: "Веганск", label: "Веганское" },
+    { value: "Низкокалорийн", label: "Низкокалорийное" }, { value: "Детск", label: "Детское меню" },
+  ]);
+  multi("f-course", byCount(count(RECIPES.map((r) => r.course))));
+  multi("f-cuisine", byCount(count(RECIPES.map((r) => r.cuisine))).map((x) => ({ ...x, short: x.value.replace(/ кухня$/, "") })));
+
+  // подразделы eda.ru (котлеты, борщ, пироги…) — список зависит от выбранных типов блюд
   const TAG_SKIP = /кухня$|^Пошаговые рецепты$|^(Веганская|Вегетарианская|Низкокалорийная|Постная) еда$|^Детское меню$/;
   function fillTags() {
-    const sel = $("f-tag");
-    const course = $("f-course").value;
-    const prev = sel.value;
-    const counts = count(RECIPES.filter((r) => !course || r.course === course).flatMap((r) => r.tags.filter((t) => !TAG_SKIP.test(t))));
-    const items = [...counts].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, course ? 60 : 80);
-    sel.innerHTML = `<option value="">${course ? "Любой подраздел" : "Все подразделы"}</option>` +
-      items.map(([t, n]) => `<option value="${esc(t)}">${esc(t)} (${n})</option>`).join("");
-    sel.value = items.some(([t]) => t === prev) ? prev : "";
+    const courses = $("f-course").values;
+    const counts = count(RECIPES.filter((r) => !courses.size || courses.has(r.course)).flatMap((r) => r.tags.filter((t) => !TAG_SKIP.test(t))));
+    multi("f-tag", byCount(counts).filter((x) => x.n >= 3).slice(0, courses.size ? 80 : 100));
   }
   fillTags();
-  $("f-course").addEventListener("change", fillTags);
+  $("f-course").addEventListener("ms-change", fillTags);
   $("f-missing").value = settings.missing;
 
   $("f-meals").checked = settings.mealsOnly !== false;
   $("f-meals").addEventListener("change", (e) => { settings.mealsOnly = e.target.checked; saveSettings(); });
 
   for (const id of ["title-search", "f-meal", "f-diet", "f-course", "f-tag", "f-cuisine", "f-time", "f-missing", "f-fav", "f-meals"]) {
-    $(id).addEventListener(id === "title-search" ? "input" : "change", () => {
+    const ev = id === "title-search" ? "input" : $(id).classList.contains("ms") ? "ms-change" : "change";
+    $(id).addEventListener(ev, () => {
       if (id === "f-missing") { settings.missing = $(id).value; saveSettings(); }
       update();
     });
@@ -294,11 +341,12 @@
   function update() {
     shownN = PAGE;
     const q = $("title-search").value.trim().toLowerCase().replace(/ё/g, "е");
-    const course = $("f-course").value;
-    const tag = $("f-tag").value;
-    const cuisine = $("f-cuisine").value;
-    const meal = MEALS[$("f-meal").value];
-    const diet = $("f-diet").value;
+    const courses = $("f-course").values;
+    const tags = $("f-tag").values;
+    const cuisines = $("f-cuisine").values;
+    const meals = [...$("f-meal").values].map((m) => MEALS[m]);
+    const diets = [...$("f-diet").values];
+    const baseChosen = [...courses].some((c) => BASE_COURSES.has(c));
     const maxTime = +$("f-time").value || Infinity;
     const maxMissing = +$("f-missing").value;
     const favOnly = $("f-fav").checked;
@@ -306,12 +354,13 @@
 
     results = [];
     for (const r of RECIPES) {
-      if (course && r.course !== course) continue;
-      if (mealsOnly && r.minor && !(course && BASE_COURSES.has(course))) continue;
-      if (cuisine && r.cuisine !== cuisine) continue;
-      if (tag && !r.tags.includes(tag)) continue;
-      if (meal && !meal(r)) continue;
-      if (diet && !r.tags.some((t) => t.startsWith(diet))) continue;
+      // внутри одного фильтра — «любое из отмеченного», между фильтрами — «и»
+      if (courses.size && !courses.has(r.course)) continue;
+      if (mealsOnly && r.minor && !baseChosen) continue;
+      if (cuisines.size && !cuisines.has(r.cuisine)) continue;
+      if (tags.size && !r.tags.some((t) => tags.has(t))) continue;
+      if (meals.length && !meals.some((f) => f(r))) continue;
+      if (diets.length && !r.tags.some((t) => diets.some((d) => t.startsWith(d)))) continue;
       if (r.m && r.m > maxTime) continue;
       if (maxTime !== Infinity && !r.m) continue;
       if (q && !r.lc.includes(q)) continue;
