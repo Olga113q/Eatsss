@@ -11,7 +11,12 @@ APK: https://github.com/Olga113q/Eatsss/releases/download/android/chto-prigotovi
 Состояние пользователя — в localStorage (ключи `wtc:*`), на каждом устройстве своё.
 
 ## Структура
-- `recipes-app/data/recipes.js` — ~6950 рецептов eda.ru (14 МБ). Собирается `tools/build_data.py` из SQL-дампа
+- `recipes-app/data/recipes.js` — ~6950 рецептов eda.ru БЕЗ шагов (5 МБ, gzip ~0,95 МБ) + `data/steps.js` — шаги
+  (`window.RECIPE_STEPS[id]`, 9 МБ), догружается в фоне (app.js `loadSteps`), окно рецепта дорисовывает шаги само.
+  Раньше всё было одним файлом 14 МБ: в приложении грузилось ~70 с, на телефоне через VPN обрывалось («Не найден файл
+  data/recipes.js»). Если recipes.js не загрузился — app.js один раз качает его заново и перезапускает app.js+planner.js,
+  иначе показывает экран «Не удалось загрузить рецепты» с диагностикой и «Повторить».
+  Старое описание: Собирается `tools/build_data.py` из SQL-дампа
   https://github.com/Maximilyanus29/recipes (`docker/docker-entrypoint-initdb.d/recipes.sql`, таблица recipe_temp).
 - `tools/normalize.py` — правила «название ингредиента → продукт» (~570 продуктов; курица разделена на
   филе / ножки / крылья / целая). Правила — по порядку, первое совпавшее. ВАЖНО: в JS-регэкспах `\b` не работает
