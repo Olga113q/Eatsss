@@ -133,7 +133,7 @@
     // «пропадёт»: оплаченная, но не использованная часть скоропортящихся продуктов
     let waste = 0;
     for (const l of lines) {
-      if (!l.offer || l.offer[0] === "approx" || DURABLE.has(PRODUCTS[l.pid].cat)) continue;
+      if (!l.offer || l.offer[0] === "approx" || isDurable(l.pid)) continue;
       if (l.cut) {
         const unused = l.cut.reduce((n, c) => n + Math.max(0, c.get - c.need), 0);
         waste += (unused / (l.packs * l.offer[3])) * l.cost;
@@ -147,6 +147,10 @@
   // то, что спокойно хранится (крупы, специи, масло, консервы…) — остатки не считаем потерей
   const DURABLE = new Set(["Специи", "Крупы, мука, макароны", "Масла", "Соусы и консервы", "Для выпечки и сладкое",
     "Напитки и алкоголь", "Сухофрукты и орехи", "Бобовые", "Базовое", "Другое"]);
+  // овощи и продукты, которые спокойно лежат неделями
+  const KEEPS = new Set(["Лук репчатый", "Чеснок", "Картофель", "Морковь", "Свекла", "Капуста", "Яйца", "Сливочное масло",
+    "Твердый сыр", "Сыр твердый", "Пармезан", "Тыква", "Яблоки", "Лимон", "Имбирь"]);
+  const isDurable = (pid) => DURABLE.has(PRODUCTS[pid].cat) || KEEPS.has(PRODUCTS[pid].name);
 
   // ---------- состав ужина: белок + гарнир ----------
   const pidOf = (n) => (A.BY_NAME.get(n) || {}).id;
@@ -285,7 +289,7 @@
     // обязательно смотрим блюда, которые доедают уже купленное (ножки и крылья от тушки, полкочана капусты…)
     const leftPids = new Set();
     for (const l of baseB.lines) {
-      if (!l.offer || l.offer[0] === "approx" || DURABLE.has(PRODUCTS[l.pid].cat)) continue;
+      if (!l.offer || l.offer[0] === "approx" || isDurable(l.pid)) continue;
       if (l.cut) {
         for (const c of l.cut) if (c.get - c.need > 150) leftPids.add((A.BY_NAME.get(c.name) || {}).id);
       } else if (l.packs * l.offer[3] - l.need - (l.fromCarcass || 0) > Math.max(150, l.need * 0.3)) leftPids.add(l.pid);
@@ -452,6 +456,7 @@
       });
       html += `</table>`;
       html += shoppingList(b);
+      html += leftoversList(b);
       html += `<div class="modal-actions">
         <button id="pl-again">🔄 Другое меню</button>
         <button id="pl-toshop">🛒 Добавить в список покупок</button>
@@ -468,6 +473,46 @@
     const left = l.packs * l.offer[3] - l.need - (l.fromCarcass || 0);
     if (left <= Math.max(u === "pcs" ? 1 : 60, l.need * 0.2)) return "";
     return `, останется ~${fmtQty(left, u)}`;
+  }
+
+  // что останется от купленного после всей недели
+  function leftoversList(b) {
+    const unit = (pid) => (OFFERS.get(pid) || {}).u || "g";
+    const rows = [];
+    for (const l of b.lines) {
+      if (!l.offer) continue;
+      const bought = l.packs * l.offer[3];
+      const durable = isDurable(l.pid);
+      if (l.cut) {
+        for (const c of l.cut) {
+          const left = c.get - c.need;
+          if (left > 20) {
+            const pid = (A.BY_NAME.get(c.name) || {}).id;
+            rows.push({ name: c.name, left, u: "g", value: (left / bought) * l.cost, durable: false, from: "из тушки" });
+          }
+        }
+        continue;
+      }
+      const left = bought - l.need - (l.fromCarcass || 0);
+      const u = unit(l.pid);
+      if (left <= (u === "pcs" ? 0.5 : 10)) continue;
+      rows.push({ name: PRODUCTS[l.pid].name, left, u, value: (left / bought) * l.cost, durable,
+        approx: l.offer[0] === "approx", share: left / bought });
+    }
+    if (!rows.length) return `<h3>Остатки</h3><p class="hint">Всё купленное уходит в блюда.</p>`;
+    rows.sort((a, c) => (a.durable - c.durable) || (c.value - a.value));
+    const sum = (f) => rows.filter(f).reduce((n, r) => n + r.value, 0);
+    const per = sum((r) => !r.durable), dur = sum((r) => r.durable);
+    const spent = b.lines.reduce((n, l) => n + (l.cost || 0), 0);
+    return `<h3>Остатки после недели</h3>
+      <p class="muted">Скоропортящееся: ~${rub(per)} · хранится долго (крупы, специи, масло, консервы, лук, картошка…): ~${rub(dur)}.
+        В блюда этой недели уходит ~${Math.round((1 - (per + dur) / Math.max(1, spent)) * 100)}% стоимости корзины, остальное — в основном запасы на потом.</p>
+      <table class="plan-cart leftovers">` + rows.map((r) => `<tr class="${r.durable ? "keeps" : "spoils"}">
+        <td><b>${esc(r.name)}</b>${r.from ? ` <span class="muted">${r.from}</span>` : ""}</td>
+        <td class="num">~${fmtQty(r.left, r.u)}${r.share ? ` <span class="muted">(${Math.round(r.share * 100)}% упаковки)</span>` : ""}</td>
+        <td>${r.durable ? '<span class="muted">хранится</span>' : '<span class="bad">испортится, если не использовать</span>'}</td>
+        <td class="num">${r.approx ? "≈" : "~"}${rub(r.value)}</td>
+      </tr>`).join("") + `</table>`;
   }
 
   function shoppingList(b) {
