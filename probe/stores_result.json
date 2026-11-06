@@ -1,0 +1,93 @@
+[
+ {
+  "url": "https://ipinfo.io/json",
+  "status": 200,
+  "final": "https://ipinfo.io/json",
+  "len": 267,
+  "server": null,
+  "ctype": "application/json",
+  "head": "{\n  \"ip\": \"13.83.42.100\",\n  \"city\": \"San Jose\",\n  \"region\": \"California\",\n  \"country\": \"US\",\n  \"loc\": \"37.3394,-121.8950\",\n  \"org\": \"AS8075 Microsoft Corporation\",\n  \"postal\": \"95110\",\n  \"timezone\": \"America/Los_Angeles\",\n  \"readme\": \"https://ipinfo.io/missingauth\"\n}",
+  "sec": 0.1
+ },
+ {
+  "url": "https://5ka.ru/",
+  "status": 200,
+  "final": "https://5ka.ru/",
+  "len": 2152,
+  "server": "nginx",
+  "ctype": "text/html",
+  "head": "<!DOCTYPE html>\n<html>\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n  <noscript><meta http-equiv=\"refresh\" content=\"0; url=/exhkqyad\"></noscript>\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">\n</head>\n<scr",
+  "sec": 1.0
+ },
+ {
+  "url": "https://5ka.ru/catalog/",
+  "status": 200,
+  "final": "https://5ka.ru/catalog/",
+  "len": 2161,
+  "server": "nginx",
+  "ctype": "text/html",
+  "head": "<!DOCTYPE html>\n<html>\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n  <noscript><meta http-equiv=\"refresh\" content=\"0; url=/exhkqyad\"></noscript>\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">\n</head>\n<scr",
+  "sec": 1.0
+ },
+ {
+  "url": "https://5d.5ka.ru/api/catalog/v2/stores/",
+  "status": 403,
+  "server": "nginx",
+  "head": "<!DOCTYPE html>\n<html>\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1\">\n  <style>\n    body {\n      font-family: sans-serif;\n      height: 100vh;\n      display: flex;\n      justify-co",
+  "sec": 1.0
+ },
+ {
+  "url": "https://magnit.ru/",
+  "status": 200,
+  "final": "https://magnit.ru/",
+  "len": 400000,
+  "server": "nginx",
+  "ctype": "text/html;charset=utf-8",
+  "head": "<!DOCTYPE html><html  lang=\"ru\"><head><script nonce=\"rSzuj74asVb6OzWAfasjwrzu\" type=\"text/javascript\" data-hid=\"main-header-bidding-config\">\n(function () {\n  if (window.__mainHeaderBiddingConfigured) {\n    return;\n  }\n\n  var nextSettings = {\"biddersMap\":{\"sape\":\"3559720\",\"hybrid\":\"3563393\",\"betweenD",
+  "sec": 2.3
+ },
+ {
+  "url": "https://magnit.ru/catalog/",
+  "status": 200,
+  "final": "https://magnit.ru/catalog",
+  "len": 400000,
+  "server": "nginx",
+  "ctype": "text/html;charset=utf-8",
+  "head": "<!DOCTYPE html><html  lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Каталог Магнит – все товары и продукты питания</title><script nonce=\"VowPbP/9OmYvn36+WsK+aKYJ\" src=\"https://static.terratraf.",
+  "sec": 4.5
+ },
+ {
+  "url": "https://www.perekrestok.ru/",
+  "status": 200,
+  "final": "https://www.perekrestok.ru/",
+  "len": 2151,
+  "server": "nginx",
+  "ctype": "text/html",
+  "head": "<!DOCTYPE html>\n<html>\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n  <noscript><meta http-equiv=\"refresh\" content=\"0; url=/exhkqyad\"></noscript>\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">\n</head>\n<scr",
+  "sec": 1.4
+ },
+ {
+  "url": "https://www.perekrestok.ru/cat/",
+  "status": 200,
+  "final": "https://www.perekrestok.ru/cat/",
+  "len": 2157,
+  "server": "nginx",
+  "ctype": "text/html",
+  "head": "<!DOCTYPE html>\n<html>\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n  <noscript><meta http-equiv=\"refresh\" content=\"0; url=/exhkqyad\"></noscript>\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">\n</head>\n<scr",
+  "sec": 1.0
+ },
+ {
+  "url": "https://lenta.com/",
+  "status": 401,
+  "server": "QRATOR",
+  "head": "<!DOCTYPE html>\n<html><head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n<link rel=\"icon\" href=\"data:,\"/>\n<meta name=\"referrer\" content=\"no-referrer\" />\n<script src=\"/__qrator/qauth.js\" charset=\"utf-8\"></script>\n</head><body></body>\n</html>",
+  "sec": 0.3
+ },
+ {
+  "url": "https://lenta.com/catalog/",
+  "status": 401,
+  "server": "QRATOR",
+  "head": "<!DOCTYPE html>\n<html><head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n<link rel=\"icon\" href=\"data:,\"/>\n<meta name=\"referrer\" content=\"no-referrer\" />\n<script src=\"/__qrator/qauth.js\" charset=\"utf-8\"></script>\n</head><body></body>\n</html>",
+  "sec": 0.2
+ }
+]
