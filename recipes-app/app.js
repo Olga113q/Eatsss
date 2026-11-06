@@ -2,10 +2,60 @@
   "use strict";
 
   const D = window.RECIPE_DATA;
-  if (!D) {
-    document.getElementById("list").innerHTML =
-      '<p class="empty">Не найден файл data/recipes.js. Соберите его: <code>python3 tools/build_data.py recipes.sql</code></p>';
-    return;
+  if (!D) { recipesMissing(); return; }
+
+  // База рецептов (data/recipes.js, 14 МБ) не загрузилась. Один раз пробуем скачать её заново в обход кеша
+  // и перезапустить app.js + planner.js; если снова не вышло — показываем, что именно сломалось, и «Повторить».
+  function recipesMissing() {
+    const box = document.getElementById("categories");
+    document.getElementById("list").innerHTML = "";
+    const addScript = (src) => new Promise((ok, bad) => {
+      const s = document.createElement("script");
+      s.src = src; s.async = false; s.onload = ok; s.onerror = () => bad(new Error("не удалось скачать " + src));
+      document.body.appendChild(s);
+    });
+    if (!window.__recipesRetry) {
+      window.__recipesRetry = 1;
+      box.innerHTML = '<p class="empty">Загружаю рецепты ещё раз…</p>';
+      addScript("data/recipes.js?r=" + Date.now())
+        .then(() => {
+          if (!window.RECIPE_DATA) throw new Error("файл скачался, но рецептов в нём нет");
+          return addScript("app.js?r=" + Date.now()).then(() => addScript("planner.js?r=" + Date.now()));
+        })
+        .catch((e) => showProblem(String(e.message || e)));
+      return;
+    }
+    if (window.__recipesRetry === 1) { window.__recipesRetry = 2; showProblem("после повторной загрузки данных нет"); }
+
+    async function showProblem(reason) {
+      const info = [
+        "Причина: " + reason,
+        "Ошибки загрузки: " + ((window.__loadErrors || []).join(" | ") || "нет"),
+        "Сеть: " + (navigator.onLine ? "есть" : "нет"),
+        "Офлайн-кеш: " + (navigator.serviceWorker && navigator.serviceWorker.controller ? "включён" : "нет"),
+        "Браузер: " + navigator.userAgent,
+      ];
+      try {
+        const t0 = Date.now();
+        const r = await fetch("data/recipes.js?d=" + Date.now(), { cache: "no-store" });
+        const text = await r.text();
+        info.push(`Проверка скачивания: HTTP ${r.status}, ${(text.length / 1e6).toFixed(1)} млн символов за ${((Date.now() - t0) / 1000).toFixed(1)} с`);
+      } catch (e) {
+        info.push("Проверка скачивания: ошибка — " + e);
+      }
+      box.innerHTML =
+        '<div class="load-problem"><p><b>Не удалось загрузить рецепты.</b> Проверьте интернет и нажмите «Повторить». ' +
+        "Если не поможет — пришлите скриншот этого экрана.</p>" +
+        '<button id="reload-all" class="more" type="button">Повторить</button>' +
+        "<pre>" + info.map((s) => s.replace(/[<>&]/g, "")).join("\n") + "</pre></div>";
+      document.getElementById("reload-all").addEventListener("click", async () => {
+        try {
+          for (const k of await caches.keys()) await caches.delete(k);
+          for (const r of (await navigator.serviceWorker?.getRegistrations()) || []) await r.unregister();
+        } catch (e) { /* без кеша — просто перезагрузим */ }
+        location.reload();
+      });
+    }
   }
 
   // ---------- данные ----------

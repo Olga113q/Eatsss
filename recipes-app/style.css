@@ -235,3 +235,5 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .app-update span { flex: 1 1 200px; }
 .app-update-get { background: var(--accent); color: #fff; padding: 8px 16px; border-radius: 999px; text-decoration: none; font-weight: 600; }
 .app-update-later { background: none; border: 0; color: var(--muted); padding: 8px; }
+.load-problem pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--muted); background: #f6f2ec; padding: 10px; border-radius: 8px; }
+.load-problem .more { margin: 12px 0; }

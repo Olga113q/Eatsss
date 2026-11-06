@@ -80,6 +80,15 @@
   </div>
 </dialog>
 
+<script>
+  // запоминаем ошибки загрузки скриптов и разбора (для экрана «Не удалось загрузить рецепты»)
+  window.__loadErrors = [];
+  addEventListener("error", (e) => {
+    const t = e.target;
+    if (t && t.tagName && t.tagName !== "SCRIPT") return; // картинки не считаем
+    window.__loadErrors.push(t && t.src ? "не скачался " + t.src.replace(/.*recipes-app\//, "") : String(e.message || "ошибка"));
+  }, true);
+</script>
 <script src="data/recipes.js"></script>
 <script src="data/images.js" onerror="void 0"></script>
 <script src="data/plan.js" onerror="void 0"></script>
