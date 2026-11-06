@@ -245,3 +245,7 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .app-update-later { background: none; border: 0; color: var(--muted); padding: 8px; }
 .load-problem pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; color: var(--muted); background: #f6f2ec; padding: 10px; border-radius: 8px; }
 .load-problem .more { margin: 12px 0; }
+
+/* ---- строка версии внизу страницы ---- */
+.version-line { text-align: center; font-size: 12px; color: var(--muted); padding: 16px 12px calc(96px + env(safe-area-inset-bottom)); }
+.version-line .link { font-size: 12px; }
