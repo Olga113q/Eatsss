@@ -33,7 +33,7 @@
 
   const MIN_INGREDIENTS = 4;
   const BASE_COURSES = new Set(["Напитки", "Соусы и маринады", "Заготовки", "Бульоны"]);
-  const BASE_TITLE = /^(тесто|крем|глазурь|соус|маринад|заправка|сироп|бульон|начинка|карамель|ганаш|майонез|кетчуп|песто|паста из|масло|сливочный крем|основа|корж|бисквит для|пропитка|подлива|подливка)\b/;
+  const BASE_TITLE = /^(тесто|крем|глазурь|соус|маринад|заправка|сироп|бульон|начинка|карамель|ганаш|майонез|кетчуп|песто|паста из|масло|сливочный крем|основа|корж|бисквит для|пропитка|подлива|подливка)(?![а-яё])/;
 
   // приём пищи → разделы eda.ru (в исходных данных деления на обед/ужин нет, собираем из разделов)
   const MEALS = {
@@ -541,7 +541,7 @@
     if (e.target.id === "shop-clear") { shop = []; saveShop(); updateCounters(); renderShop(); }
     if (e.target.id === "shop-bought") {
       for (const x of shop.filter((x) => x.done)) {
-        const p = BY_NAME.get(x.name);
+        const p = BY_NAME.get(x.product || x.name);
         if (p) have.add(p.id);
       }
       shop = shop.filter((x) => !x.done);
@@ -557,6 +557,16 @@
   $("to-results").addEventListener("click", () => $("results").scrollIntoView({ behavior: "smooth" }));
   new IntersectionObserver(([e]) => $("to-results").classList.toggle("hidden", e.isIntersecting))
     .observe($("summary"));
+
+  // ---------- доступ для planner.js ----------
+  window.APP = {
+    PRODUCTS, BY_NAME, RECIPES, MEALS, IGNORE, have, defaultHave, esc, plural, store, openRecipe,
+    addToShop(items) {   // items: [{name, product, from}]
+      for (const it of items) if (!shop.some((x) => x.name === it.name)) shop.push({ ...it, done: false });
+      saveShop();
+      updateCounters();
+    },
+  };
 
   // ---------- старт ----------
   renderPantry();

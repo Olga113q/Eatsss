@@ -193,3 +193,21 @@ dialog h3 { margin: 18px 0 8px; }
 .ms-clear { display: block; margin: 2px 12px 6px auto; }
 .filters .ms-panel input { flex: none; width: auto; margin: 0; padding: 0; }
 .ms-panel label { text-align: left; white-space: nowrap; }
+
+/* ---- план на неделю ---- */
+#planner { width: min(1000px, 96vw); }
+.plan-form { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; margin: 10px 0 4px; }
+.plan-form > label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 3px; }
+.plan-form input[type=number], .plan-form select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; width: 120px; background: #fff; color: var(--text); }
+.plan-meals { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; font-size: 14px; }
+.primary { background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 8px 20px; font-weight: 600; }
+.plan-total { margin: 14px 0 4px; padding: 10px 14px; border-radius: 10px; background: var(--ok-soft); }
+.plan-total.over { background: #fff4e6; }
+.plan-menu, .plan-cart { width: 100%; border-collapse: collapse; font-size: 14px; }
+.plan-menu td, .plan-cart td { padding: 6px 6px; border-bottom: 1px dashed var(--line); vertical-align: top; }
+.plan-menu a, .plan-cart a { color: var(--text); }
+.num { text-align: right; white-space: nowrap; }
+@media (max-width: 700px) {
+  .plan-cart td:nth-child(2) { font-size: 12px; }
+  .plan-form input[type=number], .plan-form select { width: 100px; }
+}
