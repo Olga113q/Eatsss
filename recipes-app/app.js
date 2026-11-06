@@ -448,7 +448,7 @@
     const v = a * f;
     const unit = m[4];
     let txt;
-    if (/^(г|мл)\b/.test(unit) && v >= 20) txt = String(Math.round(v / 5) * 5);
+    if (/^(г|мл)(?![а-яё])/.test(unit) && v >= 20) txt = String(Math.round(v / 5) * 5);
     else if (v >= 10 || (v >= 3 && /^(шт|зубч|пуч|голов|ломт|веточ|стеб|лист|кус|банк|упаков|пачк)/.test(unit))) txt = String(Math.round(v));
     else {
       const whole = Math.floor(v), rest = v - whole;
