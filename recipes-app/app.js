@@ -75,7 +75,7 @@
     const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc);
     const isSimple = reqU.length < MIN_INGREDIENTS;
     const textLen = r.s.reduce((n, st) => n + st.length, 0);
-    return { ...r, id, course, cuisine, tags: r.c.slice(1), sweet: sweetIdx(r) > 0 && !r.i.some(([pid, , , o]) => !o && isSavory(pid)), req: reqU, opt, lc, minor: isBase || isSimple, textLen };
+    return { ...r, id, course, cuisine, tags: r.c.slice(1).map((t) => t.replace(/\s+/g, " ").trim()), sweet: sweetIdx(r) > 0 && !r.i.some(([pid, , , o]) => !o && isSavory(pid)), req: reqU, opt, lc, minor: isBase || isSimple, textLen };
   });
 
   // ---------- состояние (сохраняется в браузере) ----------
@@ -245,12 +245,27 @@
   };
   fill($("f-course"), count(RECIPES.map((r) => r.course)));
   fill($("f-cuisine"), count(RECIPES.map((r) => r.cuisine)));
+
+  // подразделы eda.ru (котлеты, борщ, пироги…) — список зависит от выбранного типа блюда
+  const TAG_SKIP = /кухня$|^Пошаговые рецепты$|^(Веганская|Вегетарианская|Низкокалорийная|Постная) еда$|^Детское меню$/;
+  function fillTags() {
+    const sel = $("f-tag");
+    const course = $("f-course").value;
+    const prev = sel.value;
+    const counts = count(RECIPES.filter((r) => !course || r.course === course).flatMap((r) => r.tags.filter((t) => !TAG_SKIP.test(t))));
+    const items = [...counts].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, course ? 60 : 80);
+    sel.innerHTML = `<option value="">${course ? "Любой подраздел" : "Все подразделы"}</option>` +
+      items.map(([t, n]) => `<option value="${esc(t)}">${esc(t)} (${n})</option>`).join("");
+    sel.value = items.some(([t]) => t === prev) ? prev : "";
+  }
+  fillTags();
+  $("f-course").addEventListener("change", fillTags);
   $("f-missing").value = settings.missing;
 
   $("f-meals").checked = settings.mealsOnly !== false;
   $("f-meals").addEventListener("change", (e) => { settings.mealsOnly = e.target.checked; saveSettings(); });
 
-  for (const id of ["title-search", "f-meal", "f-diet", "f-course", "f-cuisine", "f-time", "f-missing", "f-fav", "f-meals"]) {
+  for (const id of ["title-search", "f-meal", "f-diet", "f-course", "f-tag", "f-cuisine", "f-time", "f-missing", "f-fav", "f-meals"]) {
     $(id).addEventListener(id === "title-search" ? "input" : "change", () => {
       if (id === "f-missing") { settings.missing = $(id).value; saveSettings(); }
       update();
@@ -280,6 +295,7 @@
     shownN = PAGE;
     const q = $("title-search").value.trim().toLowerCase().replace(/ё/g, "е");
     const course = $("f-course").value;
+    const tag = $("f-tag").value;
     const cuisine = $("f-cuisine").value;
     const meal = MEALS[$("f-meal").value];
     const diet = $("f-diet").value;
@@ -293,6 +309,7 @@
       if (course && r.course !== course) continue;
       if (mealsOnly && r.minor && !(course && BASE_COURSES.has(course))) continue;
       if (cuisine && r.cuisine !== cuisine) continue;
+      if (tag && !r.tags.includes(tag)) continue;
       if (meal && !meal(r)) continue;
       if (diet && !r.tags.some((t) => t.startsWith(diet))) continue;
       if (r.m && r.m > maxTime) continue;
