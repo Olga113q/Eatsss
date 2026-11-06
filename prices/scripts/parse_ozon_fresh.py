@@ -7,6 +7,7 @@ widget — JSON-строка виджета с плитками товаров. 
 
     python prices/scripts/parse_ozon_fresh.py [YYYY-MM-DD]
 """
+import glob
 import json
 import os
 import re
@@ -72,7 +73,8 @@ def norm_qty(value, unit):
 
 def parse_amount(name, labels):
     for src in [name] + labels:
-        found = QTY_RE.findall(src)
+        # «… 500 гр … урожай 2026г» — год, а не вес
+        found = [f for f in QTY_RE.findall(src) if not (f[1].lower() in ("г", "гр") and 1990 <= float(f[0].replace(",", ".")) <= 2035)]
         mass = [f for f in found if f[1].lower() != "шт"]
         if mass:
             return norm_qty(*mass[-1])
@@ -156,6 +158,24 @@ def main():
                             "category": label, "section": section, "url": it["url"]})
             cnt += cap
         print(f"{section}\t{cnt}")
+    # Дособор: поиск по Ozon Fresh продуктов, которых не было в разделах (prices/missing.md).
+    # prices/pages/ozon_fresh/search/<продукт>.json — те же ответы tileGrid; берём всё найденное,
+    # лишнее (маринованный имбирь вместо свежего и т. п.) отсеет build_prices.py по названию.
+    sdir = os.path.join(PAGES, "search")
+    extra = 0
+    for path in sorted(glob.glob(os.path.join(sdir, "*.json"))):
+        prod = os.path.basename(path)[:-5]
+        for page in json.load(open(path, encoding="utf-8")):
+            for raw in json.loads(page["widget"]).get("items", []):
+                it = parse_item(raw)
+                if not it or it["sku"] in used:
+                    continue
+                used.add(it["sku"])
+                extra += 1
+                out.append({"name": it["name"], "price": it["price"], "old_price": it["old_price"],
+                            "amount": it["amount"], "unit": it["unit"], "card_price": it["card_price"],
+                            "category": "Поиск: " + prod, "section": "Дособор", "url": it["url"]})
+    print(f"Дособор (поиск)\t{extra}")
     data = {"store": "ozon_fresh", "collected_at": collected, "items": out}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:

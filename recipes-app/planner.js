@@ -338,7 +338,7 @@
     for (const s2 of chosen) for (const a of s2.add || []) addUsed.set(a, (addUsed.get(a) || 0) + 1);
     for (const r of pool) {
       if (used.has(r.id) || r.id === opts.exclude) continue;
-      if (opts.cheapest && familyOf(r) && families.has(familyOf(r))) continue; // и при экономии — без повторов
+      if (familyOf(r) && families.has(familyOf(r))) continue; // второй плов/борщ/лазанья за неделю — нет
       // к блюду подбираем добавку (гарнир или белок), которая выгоднее всего с учётом уже купленного
       const P_ = servingsOf(r.id);
       let bestAdd = null;
@@ -365,7 +365,6 @@
         const usesLeft = r.req.some((p) => leftPids.has(p)); // доедает купленное — повтор курицы не страшен
         if (pr && !usesLeft && (proteins.get(pr) || 0) >= 2) score += 200;
         if ((groups.get(groupOf(r)) || 0) >= 1) score += 60;
-        if (familyOf(r) && families.has(familyOf(r))) score += 1000; // второй плов/борщ/лазанья за неделю — нет
         if (!opts.stable) score *= 0.8 + Math.random() * 0.5; // немного случайности, чтобы меню было разным
       }
       if (!best || score < best.score) best = { rid: r.id, add: bestAdd.add, score };
