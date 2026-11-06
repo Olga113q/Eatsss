@@ -5,7 +5,7 @@
     data/prices/<магазин>.json — цены, собранные со страниц магазинов
 Пишет:
     data/plan.js  — window.PLAN_DATA = {
-        stores:  {id: {name, address, date}},
+        stores:  {id: {name, date}},  (адреса магазинов в приложение не выводим)
         offers:  {продукт: {u: "g"|"pcs", o: [[магазин, название, цена, кол-во в u, ссылка, по_карте]]}},
         qty:     [[[id продукта, кол-во в u]...] для каждого рецепта, в порядке recipes.js],
     }
@@ -349,7 +349,7 @@ def main():
     for path in sorted(glob.glob(os.path.join(ROOT, "data", "prices", "*.json"))):
         d = json.load(open(path, encoding="utf-8"))
         sid = d.get("store") or os.path.basename(path)[:-5]
-        stores[sid] = {"name": STORE_NAMES.get(sid, sid), "address": d.get("address", ""), "date": d.get("collected_at", "")}
+        stores[sid] = {"name": STORE_NAMES.get(sid, sid), "date": d.get("collected_at", "")}
         matched = 0
         for it in d["items"]:
             prod = store_canonical(it["name"])
@@ -375,7 +375,7 @@ def main():
             continue
         offers[prod] = {"u": "pcs" if prod in PCS else "g", "o": [["approx", f"{prod} (примерно)", price, amount, "", 0]]}
         approx_n += 1
-    stores["approx"] = {"name": "примерная цена", "address": "", "date": ""}
+    stores["approx"] = {"name": "примерная цена", "date": ""}
     print(f"примерных цен добавлено: {approx_n}")
     for o in offers.values():
         o["o"].sort(key=lambda x: x[2] / x[3])

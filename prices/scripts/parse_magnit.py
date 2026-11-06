@@ -18,7 +18,6 @@ PAGES = os.path.join(ROOT, "prices", "pages", "magnit")
 OUT = os.path.join(ROOT, "recipes-app", "data", "prices", "magnit.json")
 LIMIT = 100  # товаров на раздел
 
-ADDRESS = "г Санкт-Петербург, ул Оптиков, д 47 к 1 литера а (Магнит, самовывоз/экспресс)"
 
 # раздел планировщика -> [(id категории сайта, название на сайте)]
 SECTIONS = [
@@ -125,7 +124,7 @@ def main():
                                   "section": section, "url": it["url"]})
             cnt += taken
             report.append((section, cat, label, len(files), taken))
-    data = {"store": "magnit", "address": ADDRESS, "collected_at": collected, "items": items}
+    data = {"store": "magnit", "collected_at": collected, "items": items}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)

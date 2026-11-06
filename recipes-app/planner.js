@@ -141,15 +141,29 @@
     let waste = 0;
     for (const l of lines) {
       if (!l.offer || l.offer[0] === "approx" || isDurable(l.pid)) continue;
-      if (l.cut) {
-        const unused = l.cut.reduce((n, c) => n + Math.max(0, c.get - c.need), 0);
-        waste += (unused / (l.packs * l.offer[3])) * l.cost;
-      } else {
-        const left = l.packs * l.offer[3] - l.need - (l.fromCarcass || 0);
-        if (left > 0) waste += (left / (l.packs * l.offer[3])) * l.cost;
-      }
+      const lo = leftOf(l);
+      waste += (lo.left / lo.bought) * l.cost;
     }
     return { lines, total, unpriced, waste };
+  }
+
+  // Сколько реально останется от купленного (одно правило для корзины, остатков и выбора блюд):
+  // - мясо, птицу, рыбу готовят всей упаковкой: лишнее до 40% просто уходит в блюдо (500 г нужно, 700 куплено — готовим 700);
+  // - тушку разделывают и готовят целиком (грудка отдельно, ножки/крылья/бёдра вместе, каркас на бульон) —
+  //   ненужные рецептам части тоже не остаток, пока их не больше 40% тушки;
+  // - прочее скоропортящееся: остаток меньше 25% упаковки не считаем (горсть зелени, ложка сметаны).
+  // Крупы, специи, масло и др. (isDurable) остаются как есть — они хранятся.
+  const MEATY = new Set(["Мясо и птица", "Рыба и морепродукты"]);
+  function leftOf(l) {
+    const bought = l.packs * l.offer[3];
+    const raw = l.cut
+      ? l.cut.reduce((n, c) => n + Math.max(0, c.get - c.need), 0)
+      : Math.max(0, bought - l.need - (l.fromCarcass || 0));
+    const share = raw / bought;
+    let left = raw;
+    if (l.cut || MEATY.has(PRODUCTS[l.pid].cat)) left = share <= 0.4 ? 0 : raw;
+    else if (!isDurable(l.pid) && share < 0.25) left = 0;
+    return { left, share, bought };
   }
   // то, что спокойно хранится (крупы, специи, масло, консервы…) — остатки не считаем потерей
   const DURABLE = new Set(["Специи", "Крупы, мука, макароны", "Масла", "Соусы и консервы", "Для выпечки и сладкое",
@@ -274,6 +288,16 @@
   const PROTEIN = /^(Курица|Куриное филе|Куриные ножки|Куриные крылья|Говядина|Свинина|Фарш|Индейка|Баранина|Утка|Белая рыба|Лосось \/ семга|Креветки|Куриная печень|Колбаса|Сосиски|Бекон|Ветчина)$/;
   const proteinOf = (r) => (r.req.map((p) => PRODUCTS[p].name).find((n) => PROTEIN.test(n)) || "").replace(/^Кур.*/, "Курица");
   const groupOf = (r) => r.tags.find((t) => !/кухня|Пошаговые|еда$|меню$|Горячие закуски/.test(t)) || r.course;
+  // вид блюда по названию — чтобы не было двух пловов (или двух борщей, двух лазаний) за неделю
+  const FAMILY = /плов|борщ|(?<![а-яё])щи(?![а-яё])|солянк|харчо|рассольник|окрошк|уха(?![а-яё])|котлет|тефтел|фрикадел|биточк|зраз|пельмен|вареник|манты|хинкали|голубц|лазан|паст[аы](?![а-яё])|спагетти|макарон|тальятелле|феттучин|пенне|фузилли|фарфалле|ригатони|лингвини|ризотто|пицц|пирог|киш(?![а-яё])|запеканк|омлет|фриттат|шакшук|гуляш|рагу|жаркое|азу(?![а-яё])|бефстроганов|отбивн|шницел|стейк|шашлык|чахохбили|карри|чили(?![а-яё])|бургер|шаурм|буррито|тако(?![а-яё])|кесадиль|хачапури|чебурек|блин|оладь|сырник|драник|фаршированн/;
+  const familyCache = new Map();
+  const familyOf = (r) => {
+    if (!familyCache.has(r.id)) {
+      const m = r.lc.match(FAMILY);
+      familyCache.set(r.id, m ? m[0].replace(/[ыи]$/, "").replace(/^паст.*/, "паста").replace(/^(спагетт|макарон|тальятелле|феттучин|пенне|фузилл|фарфалле|ригатон|лингвин).*/, "паста") : "");
+    }
+    return familyCache.get(r.id);
+  };
 
   const WASTE_W = 0.8; // насколько «дорого» выбрасывать продукты при выборе блюд
   function pick(slots, idx, meal, cands, opts = {}) {
@@ -282,10 +306,12 @@
     const baseB = basketOf(chosen);
     const proteins = new Map();
     const groups = new Map();
+    const families = new Set();
     for (const s of chosen) {
       const r = RECIPES[s.rid];
       proteins.set(proteinOf(r), (proteins.get(proteinOf(r)) || 0) + 1);
       groups.set(groupOf(r), (groups.get(groupOf(r)) || 0) + 1);
+      if (familyOf(r)) families.add(familyOf(r));
     }
     // ориентир — бюджет на порцию: не тратить больше, но и не кормить «пустым» ради экономии
     // ориентир на порцию: бюджет делим на все порции недели (с целым рецептом — это ужин и обед на всех)
@@ -299,9 +325,10 @@
     const leftPids = new Set();
     for (const l of baseB.lines) {
       if (!l.offer || l.offer[0] === "approx" || isDurable(l.pid)) continue;
+      if (leftOf(l).left < 150) continue; // то, что доготовят вместе или мелочь, «доедать» не нужно
       if (l.cut) {
         for (const c of l.cut) if (c.get - c.need > 150) leftPids.add((A.BY_NAME.get(c.name) || {}).id);
-      } else if (l.packs * l.offer[3] - l.need - (l.fromCarcass || 0) > Math.max(150, l.need * 0.3)) leftPids.add(l.pid);
+      } else leftPids.add(l.pid);
     }
     if (leftPids.size) {
       const inPool = new Set(pool.map((r) => r.id));
@@ -311,6 +338,7 @@
     for (const s2 of chosen) for (const a of s2.add || []) addUsed.set(a, (addUsed.get(a) || 0) + 1);
     for (const r of pool) {
       if (used.has(r.id) || r.id === opts.exclude) continue;
+      if (opts.cheapest && familyOf(r) && families.has(familyOf(r))) continue; // и при экономии — без повторов
       // к блюду подбираем добавку (гарнир или белок), которая выгоднее всего с учётом уже купленного
       const P_ = servingsOf(r.id);
       let bestAdd = null;
@@ -337,6 +365,7 @@
         const usesLeft = r.req.some((p) => leftPids.has(p)); // доедает купленное — повтор курицы не страшен
         if (pr && !usesLeft && (proteins.get(pr) || 0) >= 2) score += 200;
         if ((groups.get(groupOf(r)) || 0) >= 1) score += 60;
+        if (familyOf(r) && families.has(familyOf(r))) score += 1000; // второй плов/борщ/лазанья за неделю — нет
         if (!opts.stable) score *= 0.8 + Math.random() * 0.5; // немного случайности, чтобы меню было разным
       }
       if (!best || score < best.score) best = { rid: r.id, add: bestAdd.add, score };
@@ -410,7 +439,7 @@
   function form() {
     const real = Object.entries(STORES).filter(([id]) => id !== "approx");
     const storeOpts = [["best", "Где дешевле"]].concat(real.map(([id, s]) => [id, s.name]));
-    const sdates = real.map(([, s]) => s).map((s) => `${s.name}: ${s.address || "—"}, цены от ${s.date}`).join("<br>") +
+    const sdates = real.map(([, s]) => s).map((s) => `${s.name}: цены от ${s.date}`).join("<br>") +
       "<br>≈ — примерная цена: продукта нет в собранных ценах магазинов, взята ориентировочная цена по СПб.";
     return `
       <h2>📅 План на неделю</h2>
@@ -481,8 +510,11 @@
   // сколько останется от купленных упаковок (если заметно)
   function leftover(l, u) {
     if (!l.offer || l.offer[0] === "approx") return "";
-    const left = l.packs * l.offer[3] - l.need - (l.fromCarcass || 0);
-    if (left <= Math.max(u === "pcs" ? 1 : 60, l.need * 0.2)) return "";
+    const { left, share } = leftOf(l);
+    if (left <= (u === "pcs" ? 1 : 60)) {
+      // мясо/рыба: небольшой «перебор» упаковки просто готовим целиком
+      return MEATY.has(PRODUCTS[l.pid].cat) && share > 0.05 ? ", готовим всю упаковку" : "";
+    }
     return `, останется ~${fmtQty(left, u)}`;
   }
 
@@ -492,23 +524,12 @@
     const rows = [];
     for (const l of b.lines) {
       if (!l.offer) continue;
-      const bought = l.packs * l.offer[3];
       const durable = isDurable(l.pid);
-      if (l.cut) {
-        for (const c of l.cut) {
-          const left = c.get - c.need;
-          if (left > 20) {
-            const pid = (A.BY_NAME.get(c.name) || {}).id;
-            rows.push({ name: c.name, left, u: "g", value: (left / bought) * l.cost, durable: false, from: "из тушки" });
-          }
-        }
-        continue;
-      }
-      const left = bought - l.need - (l.fromCarcass || 0);
-      const u = unit(l.pid);
+      const { left, share, bought } = leftOf(l);
+      const u = l.cut ? "g" : unit(l.pid);
       if (left <= (u === "pcs" ? 0.5 : 10)) continue;
-      rows.push({ name: PRODUCTS[l.pid].name, left, u, value: (left / bought) * l.cost, durable,
-        approx: l.offer[0] === "approx", share: left / bought });
+      rows.push({ name: l.cut ? "Курица" : PRODUCTS[l.pid].name, from: l.cut ? "части тушки" : "", left, u,
+        value: (left / bought) * l.cost, durable, approx: l.offer[0] === "approx", share: l.cut ? 0 : share });
     }
     if (!rows.length) return `<h3>Остатки</h3><p class="hint">Всё купленное уходит в блюда.</p>`;
     rows.sort((a, c) => (a.durable - c.durable) || (c.value - a.value));
@@ -518,10 +539,11 @@
     return `<h3>Остатки после недели</h3>
       <p class="muted">Скоропортящееся: ~${rub(per)} · хранится долго (крупы, специи, масло, консервы, лук, картошка…): ~${rub(dur)}.
         В блюда этой недели уходит ~${Math.round((1 - (per + dur) / Math.max(1, spent)) * 100)}% стоимости корзины, остальное — в основном запасы на потом.</p>
+      <p class="muted">Не показываем: мясо и рыбу, если лишнего не больше 40% упаковки (готовим всю), и скоропортящееся меньше 25% упаковки.</p>
       <table class="plan-cart leftovers">` + rows.map((r) => `<tr class="${r.durable ? "keeps" : "spoils"}">
-        <td><b>${esc(r.name)}</b>${r.from ? ` <span class="muted">${r.from}</span>` : ""}</td>
-        <td class="num">~${fmtQty(r.left, r.u)}${r.share ? ` <span class="muted">(${Math.round(r.share * 100)}% упаковки)</span>` : ""}</td>
-        <td>${r.durable ? '<span class="muted">хранится</span>' : '<span class="bad">испортится, если не использовать</span>'}</td>
+        <td><b>${esc(r.name)}</b>${r.from ? ` <span class="muted">${r.from}</span>` : ""}
+          <br>${r.durable ? '<span class="muted">хранится</span>' : '<span class="bad">испортится</span>'}</td>
+        <td class="num">~${fmtQty(r.left, r.u)}${r.share ? `<br><span class="muted">${Math.round(r.share * 100)}% упаковки</span>` : ""}</td>
         <td class="num">${r.approx ? "≈" : "~"}${rub(r.value)}</td>
       </tr>`).join("") + `</table>`;
   }

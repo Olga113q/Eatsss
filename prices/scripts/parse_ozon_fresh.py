@@ -18,7 +18,6 @@ PAGES = os.path.join(ROOT, "prices", "pages", "ozon_fresh")
 OUT = os.path.join(ROOT, "recipes-app", "data", "prices", "ozon_fresh.json")
 LIMIT = 100
 
-ADDRESS = "Санкт-Петербург, ул. Оптиков, 47 к. 1 (адрес доставки Ozon Fresh)"
 
 FLOUR = re.compile(r"мук[аи]|разрыхлит|дрожж|крахмал|смесь для выпечки|смесь для (хлеба|блин|оладий|торт|пирог|кекс)", re.I)
 PASTA = re.compile(r"^(макарон|лапш|спагетти|паста|вермишель)", re.I)
@@ -157,7 +156,7 @@ def main():
                             "category": label, "section": section, "url": it["url"]})
             cnt += cap
         print(f"{section}\t{cnt}")
-    data = {"store": "ozon_fresh", "address": ADDRESS, "collected_at": collected, "items": out}
+    data = {"store": "ozon_fresh", "collected_at": collected, "items": out}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
