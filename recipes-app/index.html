@@ -38,6 +38,23 @@
   <main class="results" id="results">
     <div class="filters">
       <input id="title-search" type="search" placeholder="Поиск по названию рецепта">
+      <select id="f-meal" title="На какой приём пищи">
+        <option value="">Любой приём пищи</option>
+        <option value="breakfast">Завтрак</option>
+        <option value="lunch">Обед</option>
+        <option value="dinner">Ужин</option>
+        <option value="snack">Перекус / к чаю</option>
+        <option value="dessert">Десерт</option>
+        <option value="party">Праздничный стол</option>
+      </select>
+      <select id="f-diet" title="Особое питание">
+        <option value="">Без ограничений</option>
+        <option value="Постн">Постное</option>
+        <option value="Вегетарианск">Вегетарианское</option>
+        <option value="Веганск">Веганское</option>
+        <option value="Низкокалорийн">Низкокалорийное</option>
+        <option value="Детск">Детское меню</option>
+      </select>
       <select id="f-course"><option value="">Все блюда</option></select>
       <select id="f-cuisine"><option value="">Любая кухня</option></select>
       <select id="f-time">

@@ -35,6 +35,31 @@
   const BASE_COURSES = new Set(["Напитки", "Соусы и маринады", "Заготовки", "Бульоны"]);
   const BASE_TITLE = /^(тесто|крем|глазурь|соус|маринад|заправка|сироп|бульон|начинка|карамель|ганаш|майонез|кетчуп|песто|паста из|масло|сливочный крем|основа|корж|бисквит для|пропитка|подлива|подливка)\b/;
 
+  // приём пищи → разделы eda.ru (в исходных данных деления на обед/ужин нет, собираем из разделов)
+  const MEALS = {
+    breakfast: (r) => r.course === "Завтраки" || r.tags.some((t) => /^(Каши|Омлет|Яичница|Сырники|Оладьи|Блины)$/.test(t)),
+    lunch: (r) => ["Супы", "Основные блюда", "Салаты", "Паста и пицца", "Ризотто"].includes(r.course),
+    dinner: (r) => ["Основные блюда", "Салаты", "Паста и пицца", "Ризотто"].includes(r.course) ||
+      (r.course === "Закуски" && r.tags.includes("Горячие закуски")),
+    snack: (r) => ["Закуски", "Сэндвичи"].includes(r.course) ||
+      (r.course === "Выпечка и десерты" && r.tags.some((t) => /Пирожки|Булочки|Печенье|Маффины|Кексы|Пироги/.test(t))),
+    dessert: (r) => (r.course === "Выпечка и десерты" || r.tags.some((t) => /десерт|Торт|Пирожн|Мороженое|Пудинг/i.test(t))) && r.sweet,
+    party: (r) => r.tags.some((t) => /Праздничн|Новогодн|Фуршет/.test(t)),
+  };
+
+  const SWEET_IDS = new Set(["Сахар", "Сахарная пудра", "Мед", "Шоколад", "Сгущенное молоко", "Варенье / джем", "Сироп", "Какао", "Ваниль / ванилин"]
+    .map((n) => BY_NAME.get(n)?.id).filter((x) => x !== undefined));
+  const SAVORY_CATS = new Set(["Мясо и птица", "Рыба и морепродукты", "Грибы", "Специи"]);
+  const SAVORY_NAMES = new Set(["Картофель", "Лук репчатый", "Чеснок", "Зеленый лук", "Сыр твердый", "Пармезан", "Моцарелла",
+    "Сулугуни", "Фета / брынза", "Помидоры", "Болгарский перец", "Капуста", "Укроп", "Петрушка", "Майонез"]);
+  const isSavory = (pid) => SAVORY_NAMES.has(PRODUCTS[pid].name) ||
+    (SAVORY_CATS.has(PRODUCTS[pid].cat) && !/Корица|Ваниль|Кардамон|Гвоздика|Бадьян|Мускат/.test(PRODUCTS[pid].name));
+  const sweetIdx = (r) => r.i.reduce((n, [pid, , qty]) => {
+    if (!SWEET_IDS.has(pid)) return n;
+    // щепотка сахара в тесте для пирожков — не десерт
+    return /щепот|по вкусу|кончике/.test(qty) ? n : n + 1;
+  }, 0);
+
   const RECIPES = D.recipes.map((r, id) => {
     const course = r.c[0] || "";
     const cuisine = r.c.find((c) => c.endsWith("кухня")) || "";
@@ -50,7 +75,7 @@
     const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc);
     const isSimple = reqU.length < MIN_INGREDIENTS;
     const textLen = r.s.reduce((n, st) => n + st.length, 0);
-    return { ...r, id, course, cuisine, req: reqU, opt, lc, minor: isBase || isSimple, textLen };
+    return { ...r, id, course, cuisine, tags: r.c.slice(1), sweet: sweetIdx(r) > 0 && !r.i.some(([pid, , , o]) => !o && isSavory(pid)), req: reqU, opt, lc, minor: isBase || isSimple, textLen };
   });
 
   // ---------- состояние (сохраняется в браузере) ----------
@@ -225,7 +250,7 @@
   $("f-meals").checked = settings.mealsOnly !== false;
   $("f-meals").addEventListener("change", (e) => { settings.mealsOnly = e.target.checked; saveSettings(); });
 
-  for (const id of ["title-search", "f-course", "f-cuisine", "f-time", "f-missing", "f-fav", "f-meals"]) {
+  for (const id of ["title-search", "f-meal", "f-diet", "f-course", "f-cuisine", "f-time", "f-missing", "f-fav", "f-meals"]) {
     $(id).addEventListener(id === "title-search" ? "input" : "change", () => {
       if (id === "f-missing") { settings.missing = $(id).value; saveSettings(); }
       update();
@@ -256,6 +281,8 @@
     const q = $("title-search").value.trim().toLowerCase().replace(/ё/g, "е");
     const course = $("f-course").value;
     const cuisine = $("f-cuisine").value;
+    const meal = MEALS[$("f-meal").value];
+    const diet = $("f-diet").value;
     const maxTime = +$("f-time").value || Infinity;
     const maxMissing = +$("f-missing").value;
     const favOnly = $("f-fav").checked;
@@ -266,6 +293,8 @@
       if (course && r.course !== course) continue;
       if (mealsOnly && r.minor && !(course && BASE_COURSES.has(course))) continue;
       if (cuisine && r.cuisine !== cuisine) continue;
+      if (meal && !meal(r)) continue;
+      if (diet && !r.tags.some((t) => t.startsWith(diet))) continue;
       if (r.m && r.m > maxTime) continue;
       if (maxTime !== Infinity && !r.m) continue;
       if (q && !r.lc.includes(q)) continue;
