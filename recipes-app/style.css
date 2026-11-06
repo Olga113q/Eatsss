@@ -118,6 +118,7 @@ button { cursor: pointer; }
   display: block; margin: 16px auto; padding: 8px 20px; border-radius: 999px;
   border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent);
 }
+.more[hidden] { display: none; } /* иначе display:block перебивает hidden и видно «Показать ещё (-40)» */
 
 /* ---- окно ---- */
 dialog {
