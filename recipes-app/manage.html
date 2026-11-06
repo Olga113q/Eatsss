@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мои рецепты — Что приготовить?</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#e8590c">
+<link rel="icon" href="icons/icon-192.png">
+</head>
+<body class="manage">
+<header class="top">
+  <h1><a href="index.html" class="back-link" title="К подбору рецептов">←</a> 📖 Мои рецепты</h1>
+  <div class="top-actions">
+    <a href="index.html" class="ghost btn-link">🍳<span class="lbl"> Подбор рецептов</span></a>
+  </div>
+</header>
+
+<main class="manage-main">
+  <p class="muted manage-hint">Все рецепты базы. «Скрыть» — рецепт больше не предлагается ни в подборе, ни в плане на неделю.
+    «Изменить» — название, раздел, порции, ингредиенты и шаги. Изменения хранятся на этом устройстве.</p>
+  <input id="m-search" type="search" placeholder="Поиск: название или ингредиент (курица, гречка…)" autocomplete="off">
+  <div id="m-tabs" class="m-tabs"></div>
+  <div id="m-summary" class="summary"></div>
+  <div id="m-grid" class="m-grid"><p class="empty">Загружаю рецепты…</p></div>
+  <button id="m-more" class="more" hidden>Показать ещё</button>
+</main>
+
+<dialog id="editor">
+  <div class="modal-inner">
+    <button class="close" id="ed-close" aria-label="Закрыть">✕</button>
+    <div id="ed-body"></div>
+  </div>
+</dialog>
+<datalist id="products"></datalist>
+
+<script src="data/recipes.js"></script>
+<script src="recipe-edits.js"></script>
+<script src="data/images.js" onerror="void 0"></script>
+<script src="manage.js"></script>
+<script src="app-update.js" onerror="void 0"></script>
+<script>
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>

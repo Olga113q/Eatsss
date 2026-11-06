@@ -249,3 +249,53 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 /* ---- строка версии внизу страницы ---- */
 .version-line { text-align: center; font-size: 12px; color: var(--muted); padding: 16px 12px calc(96px + env(safe-area-inset-bottom)); }
 .version-line .link { font-size: 12px; }
+
+/* ---- страница «Мои рецепты» (manage.html) ---- */
+a.btn-link { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; }
+.back-link { text-decoration: none; color: var(--muted); margin-right: 4px; }
+.manage-main { max-width: 1200px; margin: 0 auto; padding: 14px 16px; }
+.manage-hint { margin: 0 0 10px; font-size: 13px; }
+#m-search { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.m-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: thin; }
+.m-tab { flex: 0 0 auto; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 14px; white-space: nowrap; }
+.m-tab span { color: var(--muted); font-size: 12px; }
+.m-tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.m-tab.on span { color: #fff; }
+.m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.mcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; cursor: pointer; }
+.mcard.is-hidden { opacity: .6; }
+.mthumb { height: 140px; }
+.mbody { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.mbody h3 { font-size: 15px; margin: 0; }
+.badge-ed { font-size: 11px; font-weight: normal; color: var(--ok); background: var(--ok-soft); border-radius: 6px; padding: 1px 6px; }
+.m-ings { display: flex; flex-wrap: wrap; gap: 4px; }
+.m-ings span { font-size: 12px; background: #f6f2ec; border-radius: 999px; padding: 2px 8px; }
+.m-ings .more-ings { background: none; color: var(--muted); }
+.m-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
+.m-actions button { flex: 1; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 8px; font-size: 13px; }
+.m-actions button:hover { border-color: var(--accent); }
+.ed-pic .mthumb { height: 160px; border-radius: 10px; margin: 8px 0; }
+.ed-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); margin: 8px 0; flex: 1; }
+.ed-field input, .ed-field select, #ed-steps { font-size: 15px; color: var(--text); padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.ed-row { display: flex; gap: 12px; }
+.ed-row .ed-field:last-child { flex: 0 0 90px; }
+#ed-steps { width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; }
+.ed-ings { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ed-ings th { text-align: left; font-size: 12px; color: var(--muted); font-weight: normal; padding: 2px 4px; }
+.ed-ings td { padding: 3px 4px; }
+.ed-ings td.c { text-align: center; width: 1%; }
+.ed-ings input:not([type=checkbox]) { width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; }
+.ed-ings tr.err input.i-prod { border-color: var(--bad); }
+.primary-btn { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; font-weight: 600; }
+@media (max-width: 700px) {
+  .m-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mthumb { height: 110px; }
+  .mbody { padding: 8px; }
+  .mbody h3 { font-size: 14px; }
+  .m-actions { flex-direction: column; }
+  /* ингредиенты в редакторе на телефоне — карточками: продукт, «как в рецепте», количество */
+  .ed-ings thead { display: none; }
+  .ed-ings tr { display: grid; grid-template-columns: 1fr 90px auto auto; gap: 4px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .ed-ings td { padding: 0; }
+  .ed-ings td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+}

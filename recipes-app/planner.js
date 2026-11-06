@@ -19,7 +19,14 @@
     const p = A.BY_NAME.get(name);
     if (p) OFFERS.set(p.id, x);
   }
-  const QTY = P.qty.map((row) => new Map(row));
+  // количества из plan.js; у изменённых рецептов — только те продукты, что остались в рецепте
+  // (для добавленных вручную количества не посчитаны — такие продукты в корзину не попадут)
+  const QTY = P.qty.map((row, rid) => {
+    const m = new Map(row);
+    const r = RECIPES[rid];
+    if (r && r.e) for (const pid of [...m.keys()]) if (!r.req.includes(pid)) m.delete(pid);
+    return m;
+  });
   const MEAL_NAMES = { breakfast: "Завтрак", lunch: "Обед", dinner: "Ужин" };
   const DAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
@@ -268,6 +275,7 @@
     const maxT = +settings.maxTime || Infinity;
     const diet = DIETS[settings.diet];
     return RECIPES.filter((r) => {
+      if (r.h) return false; // скрыт на странице «Мои рецепты»
       if (r.minor || !f(r) || !isMeal(meal, r)) return false;
       if (meal !== "breakfast" && r.k && r.k < 200) return false; // слишком лёгкое для обеда/ужина
       if (meal !== "breakfast" && r.course !== "Супы") {

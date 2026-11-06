@@ -14,6 +14,7 @@
 <header class="top">
   <h1>🍳 Что приготовить?</h1>
   <div class="top-actions">
+    <a href="manage.html" class="ghost btn-link" title="Все рецепты: скрыть, изменить">📖<span class="lbl"> Мои рецепты</span></a>
     <button id="btn-plan" class="ghost" title="Меню на неделю и корзина">📅<span class="lbl"> План на неделю</span></button>
     <button id="btn-fav" class="ghost" title="Избранные рецепты">★<span class="lbl"> Избранное</span> <span id="fav-count"></span></button>
     <button id="btn-shop" class="ghost" title="Список покупок">🛒<span class="lbl"> Покупки</span> <span id="shop-count"></span></button>
@@ -90,6 +91,7 @@
   }, true);
 </script>
 <script src="data/recipes.js"></script>
+<script src="recipe-edits.js" onerror="void 0"></script>
 <script src="data/images.js" onerror="void 0"></script>
 <script src="data/plan.js" onerror="void 0"></script>
 <script src="app.js"></script>

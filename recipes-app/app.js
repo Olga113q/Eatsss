@@ -20,7 +20,8 @@
       addScript("data/recipes.js?r=" + Date.now())
         .then(() => {
           if (!window.RECIPE_DATA) throw new Error("файл скачался, но рецептов в нём нет");
-          return addScript("app.js?r=" + Date.now()).then(() => addScript("planner.js?r=" + Date.now()));
+          return addScript("recipe-edits.js?r=" + Date.now())
+            .then(() => addScript("app.js?r=" + Date.now())).then(() => addScript("planner.js?r=" + Date.now()));
         })
         .catch((e) => showProblem(String(e.message || e)));
       return;
@@ -120,7 +121,7 @@
       (optional ? opt : req).push(pid);
     }
     const reqU = [...new Set(req)];
-    const lc = r.t.toLowerCase().replace(/ё/g, "е");
+    const lc = r.t.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " "); // неразрывные пробелы → обычные (для поиска)
     // «не блюдо»: напитки, соусы, заготовки, основы (тесто, крем, глазурь…) и совсем простые рецепты
     const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc) || /тесто для|основа для|для пиццы$/.test(lc);
     const isSimple = reqU.length < MIN_INGREDIENTS;
@@ -390,7 +391,7 @@
 
   function update() {
     shownN = PAGE;
-    const q = $("title-search").value.trim().toLowerCase().replace(/ё/g, "е");
+    const q = $("title-search").value.trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
     const courses = $("f-course").values;
     const tags = $("f-tag").values;
     const cuisines = $("f-cuisine").values;
@@ -405,6 +406,7 @@
     results = [];
     for (const r of RECIPES) {
       // внутри одного фильтра — «любое из отмеченного», между фильтрами — «и»
+      if (r.h) continue; // скрыт на странице «Мои рецепты»
       if (courses.size && !courses.has(r.course)) continue;
       if (mealsOnly && r.minor && !baseChosen) continue;
       if (cuisines.size && !cuisines.has(r.cuisine)) continue;
