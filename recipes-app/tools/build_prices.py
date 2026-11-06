@@ -44,11 +44,14 @@ PIECE = {
     "Слоеное тесто": 500, "Тесто (готовое)": 500, "Сливочное масло": 180, "Бекон": 15, "Ветчина": 30,
     "Куриное филе": 250, "Куриные ножки": 150, "Куриные крылья": 90,
 }
+STORE_PIECE = {"Сельдерей": 400}   # «Сельдерей стеблевой 1 шт» — целый пучок
 SMALL = {  # «зубчик», «ломтик» и т. п.
     "зубчик": 5, "ломтик": 25, "ломтика": 25, "ломтиков": 25, "кусочек": 25, "веточка": 3, "веточки": 3,
     "веточек": 3, "лист": 1, "листа": 1, "листьев": 1, "стебель": 50, "стебля": 50, "стеблей": 50,
 }
 SPOON = {"ст": 15, "ч": 5}
+SPOON_LIGHT = {"Пармезан", "Сыр твердый", "Моцарелла", "Кокосовая стружка", "Панировочные сухари", "Овсяные хлопья",
+               "Орехи", "Грецкие орехи", "Миндаль", "Кедровые орехи"}
 GLASS = {"Мука пшеничная": 130, "Сахар": 180, "Рис": 185, "Сахарная пудра": 120, "Манная крупа": 160,
          "Гречка": 170, "Овсяные хлопья": 90, "Крахмал": 150}
 PACK = {"банка": 400, "банки": 400, "упаковка": 200, "упаковки": 200, "пачка": 200, "пачки": 200,
@@ -184,7 +187,8 @@ NEG = {
     **{v: _FRUIT + r"|шербет|мороженое|пломбир|сублимир|корзиноч|пирож|кекс|мармелад|пастил|конфет|зефир|сок\b|морс|лимонад|компот|чай"
        for v in ["Смородина", "Ежевика", "Ягоды", "Облепиха", "Инжир", "Айва", "Фрукты"]},
     "Малина": _FRUIT + r"|шербет|мороженое|пломбир|сублимир|корзиноч|пирож|мармелад|конфет|морс|компот|чай",
-    "Эстрагон": r"лимонад|напиток|газир|сироп",
+    "Эстрагон": r"лимонад|напиток|газир|сироп|сушен",
+    **{v: r"сушен|сублим|молот|приправ" for v in ["Укроп", "Петрушка", "Кинза", "Базилик", "Мята", "Розмарин", "Тимьян"]},
     "Какао": r"напиток|растворим|3 в 1|молочн|быстрораств|несквик|nesquik|с молоком",
     "Миндаль": r"напиток|молоко|паста|масло|мука|печенье|конфет|шоколад",
     "Кокосовое молоко": r"взбиван|сливки растительн|для взбив|напиток",
@@ -300,7 +304,8 @@ def per_unit(item, prod):
     if unit in ("г", "мл"):
         return float(amount)
     if unit == "шт":
-        w = PIECE.get(prod)
+        # в магазине «1 шт» — целый пучок/кочан, а в рецепте «1 шт» — стебель (вес из PIECE)
+        w = STORE_PIECE.get(prod) or PIECE.get(prod)
         return float(amount) * w if w else None
     return None
 
@@ -329,11 +334,42 @@ def chicken_piece(raw):
     return 1500
 
 
+# Зелень: «стебель/веточка/штука» — это веточка, а не стебель сельдерея (50 г) и не пучок.
+HERB_SPRIG = {"Тимьян": 1, "Розмарин": 2, "Шалфей": 2, "Эстрагон": 3, "Базилик": 3, "Мята": 3, "Петрушка": 5,
+              "Укроп": 5, "Кинза": 5, "Зелень": 5, "Зеленый лук": 10, "Лимонная трава": 20, "Орегано": 2, "Майоран": 2}
+# «Листья базилика — 18 штук»: вес одного листа
+LEAF = {"Базилик": 0.5, "Мята": 0.3, "Шалфей": 1, "Салатные листья": 15, "Шпинат": 3, "Лавровый лист": 0.2,
+        "Руккола": 1, "Петрушка": 0.5, "Кинза": 0.5, "Капуста": 50, "Пекинская капуста": 40}
+MEATY = {"Курица", "Куриное филе", "Куриные ножки", "Куриные крылья", "Свинина", "Говядина", "Индейка", "Баранина",
+         "Утка", "Кролик", "Лосось / семга", "Белая рыба", "Фарш"}
+
+
 def recipe_qty(prod, raw, qty):
     """Сколько продукта нужно по строке рецепта: (кол-во, единица 'g'|'pcs') или None."""
+    res = _recipe_qty(prod, raw, qty)
+    if not res or res[1] != "g":
+        return res
+    g = res[0]
+    if prod == "Бульон":
+        return g / 50, "g"   # в магазинах — кубики: ~10 г кубика на 0,5 л бульона
+    if g > 50 and canonical(prod)[1] == "Специи":
+        return None   # «Мускатный орех — 500 мл»: ошибка в рецепте, специй столько не кладут
+    # «Цветная капуста — 300 штук», «Шампиньоны — 500 штук»: в рецепте граммы записаны штуками
+    if g > 4000 and prod not in MEATY:
+        num = parse_number(qty.lower())
+        if num and num >= 30 and re.search(r"шт", qty.lower()):
+            return float(num), "g"
+        return None   # «Тесто — 48 штук» (листы для равиоли) и т. п. — не угадать, лучше не считать
+    return res
+
+
+def _recipe_qty(prod, raw, qty):
     q = qty.lower().replace("ё", "е").strip()
+    rl = raw.lower().replace("ё", "е")
     if not q or re.search(r"по вкусу|для подачи|для смазыв|для жарки|для украш", q):
         return None
+    if prod == "Шафран":
+        return 0.2, "g"   # «1 ст. ложка» в рецептах — настой; самого шафрана — щепотка
     num = parse_number(q)
     if num is None:
         if re.search(r"щепот|кончике", q):
@@ -352,12 +388,21 @@ def recipe_qty(prod, raw, qty):
         return num, "g"
     if re.match(r"л\b", rest):
         return num * 1000, "g"
-    if re.match(r"стол", rest):
-        return num * SPOON["ст"], "g"
-    if re.match(r"чайн", rest):
-        return num * SPOON["ч"], "g"
+    if re.match(r"(стол|чайн)", rest):
+        # тёртый сыр и рубленая зелень лёгкие: в столовой ложке ~5–6 г, а не 15
+        light = prod in SPOON_LIGHT or canonical(prod)[1] in ("Зелень", "Специи")
+        w = (6 if light else SPOON["ст"]) if rest.startswith("стол") else (2 if light else SPOON["ч"])
+        return num * w, "g"
     if re.match(r"стакан", rest):
         return num * GLASS.get(prod, 200), "g"
+    if prod in LEAF and re.match(r"(шт|лист)", rest) and "лист" in (rl + " " + rest):
+        return num * LEAF[prod], "g"
+    if prod in HERB_SPRIG and re.match(r"(шт|стеб|стебл|веточ|побег)", rest):
+        return num * HERB_SPRIG[prod], "g"
+    if prod == "Колбаса" and re.match(r"шт", rest) and "колбаск" in rl:
+        return num * 80, "g"
+    if prod == "Моцарелла" and re.match(r"шт", rest) and num >= 6:
+        return num * 10, "g"   # «24 штуки» — мини-моцарелла (шарики), а не 24 упаковки по 125 г
     if re.match(r"(шт|головк|пучк|пучок|клубн|плод|тушк)", rest):
         w = chicken_piece(raw) if prod == "Курица" else PIECE.get(prod)
         if w is None:
@@ -420,7 +465,7 @@ def main():
                 cnt[x[0]] = cnt.get(x[0], 0) + 1
         o["o"] = keep
 
-    qty, total, parsed = [], 0, 0
+    qty, total, parsed, nfix = [], 0, 0, {}
     for r in data["recipes"]:
         row = {}
         for pid, raw, q, optional in r["i"]:
@@ -433,13 +478,20 @@ def main():
                 parsed += 1
                 row[pid] = round(row.get(pid, 0) + res[0], 1)
         qty.append([[pid, v] for pid, v in row.items()])
+        # число порций с ошибкой («борщ на 1 порцию» с 1,5 кг говядины): план пересчитывает рецепт на нужные
+        # порции и раздувает корзину в разы. Если на порцию выходит больше 1 кг продуктов — считаем по ~450 г.
+        n = r.get("n") or 4
+        weight = sum(v for pid, v in row.items() if products[pid][0] not in PCS)
+        if weight / n > 1000:
+            nfix[len(qty) - 1] = max(n, round(weight / 450))
     print(f"количества распознаны: {parsed} из {total} обязательных ингредиентов ({parsed / total:.0%})")
+    print(f"исправлено число порций: {len(nfix)} рецептов")
     print(f"продуктов с ценами: {len(offers)}")
 
     out = os.path.join(ROOT, "data", "plan.js")
     with open(out, "w", encoding="utf-8") as f:
         f.write("window.PLAN_DATA=")
-        json.dump({"stores": stores, "offers": offers, "qty": qty}, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump({"stores": stores, "offers": offers, "qty": qty, "nfix": nfix}, f, ensure_ascii=False, separators=(",", ":"))
         f.write(";\n")
     print(f"файл: {out} ({os.path.getsize(out) / 1e6:.1f} МБ)")
 

@@ -19,6 +19,10 @@
     const p = A.BY_NAME.get(name);
     if (p) OFFERS.set(p.id, x);
   }
+  // рецепты с явно неверным числом порций («борщ на 1 порцию» с 1,5 кг мяса) — число порций по общему весу
+  // (build_prices.py → nfix); если пользователь сам изменил рецепт — оставляем его значение
+  for (const [rid, n] of Object.entries(P.nfix || {})) if (RECIPES[rid] && !RECIPES[rid].e) RECIPES[rid].n = n;
+
   // количества из plan.js; у изменённых рецептов — только те продукты, что остались в рецепте
   // (для добавленных вручную количества не посчитаны — такие продукты в корзину не попадут)
   const QTY = P.qty.map((row, rid) => {
@@ -324,7 +328,9 @@
     // ориентир — бюджет на порцию: не тратить больше, но и не кормить «пустым» ради экономии
     // ориентир на порцию: бюджет делим на все порции недели (с целым рецептом — это ужин и обед на всех)
     const servPerSlot = settings.fullRecipe ? settings.people * 2 : settings.people;
-    const target = settings.budget > 0 ? settings.budget / Math.max(1, slots.length * servPerSlot) : 150;
+    // бюджет — верхняя граница, а не цель: с огромным бюджетом план раньше нарочно брал баранину и сёмгу,
+    // чтобы «потратить» его. Ориентир — обычный домашний ужин, не дороже ~200 ₽ за порцию.
+    const target = Math.min(200, settings.budget > 0 ? settings.budget / Math.max(1, slots.length * servPerSlot) : 150);
     let best = null;
     // для скорости — случайная выборка из подходящих
     let pool = cands.length > 400 ? cands.filter(() => Math.random() < 400 / cands.length) : cands;
