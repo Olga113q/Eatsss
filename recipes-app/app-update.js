@@ -39,25 +39,6 @@
 
   const m = navigator.userAgent.match(/ChtoPrigotovitApp\/(\d+)/);
   const current = m ? Number(m[1]) : 0;
-
-  // Кнопка «назад» Android. Приложение передаёт её на страницу как window.Capacitor.triggerEvent("backbutton"),
-  // но на сайте кода Capacitor нет — событие терялось, и со страницы «Мои рецепты» нельзя было вернуться.
-  // Окна (рецепт, план, редактор) закрывает сам браузер, здесь — только переход назад между страницами.
-  if (current > 0) {
-    window.Capacitor = window.Capacitor || {};
-    if (!window.Capacitor.triggerEvent) {
-      window.Capacitor.triggerEvent = (name) => {
-        if (name !== "backbutton" || document.querySelector("dialog[open]")) return true;
-        if (!/manage\.html/.test(location.pathname)) return true; // на главной — как раньше
-        const here = location.href;
-        setTimeout(() => {
-          if (location.href !== here) return; // приложение уже перешло само
-          if (history.length > 1) history.back(); else location.replace("index.html");
-        }, 250);
-        return true;
-      };
-    }
-  }
   if (current > 0 && navigator.onLine) setTimeout(() => check(current).catch(() => {}), 3000);
 
   // ---------- версия сайта ----------
