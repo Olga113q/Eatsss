@@ -72,7 +72,7 @@
     const reqU = [...new Set(req)];
     const lc = r.t.toLowerCase().replace(/ё/g, "е");
     // «не блюдо»: напитки, соусы, заготовки, основы (тесто, крем, глазурь…) и совсем простые рецепты
-    const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc);
+    const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc) || /тесто для|основа для|для пиццы$/.test(lc);
     const isSimple = reqU.length < MIN_INGREDIENTS;
     const textLen = r.s.reduce((n, st) => n + st.length, 0);
     return { ...r, id, course, cuisine, tags: r.c.slice(1).map((t) => t.replace(/\s+/g, " ").trim()), sweet: sweetIdx(r) > 0 && !r.i.some(([pid, , , o]) => !o && isSavory(pid)), req: reqU, opt, lc, minor: isBase || isSimple, textLen };

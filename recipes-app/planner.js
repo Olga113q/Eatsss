@@ -63,6 +63,9 @@
         if (q === undefined) continue;
         need.set(pid, (need.get(pid) || 0) + q * k);
       }
+      for (const a of s.add || []) {
+        for (const [pid, g] of ADDON.get(a) || []) need.set(pid, (need.get(pid) || 0) + g * settings.people);
+      }
     }
     const lines = [];
     let total = 0;
@@ -74,6 +77,84 @@
       lines.push({ pid, need: q, ...b });
     }
     return { lines, total, unpriced };
+  }
+
+  // ---------- состав ужина: белок + гарнир ----------
+  const pidOf = (n) => (A.BY_NAME.get(n) || {}).id;
+  const ids = (names) => new Set(names.map(pidOf).filter((x) => x !== undefined));
+  const PROT = ids(["Курица", "Говядина", "Свинина", "Фарш", "Индейка", "Баранина", "Утка", "Кролик", "Белая рыба",
+    "Лосось / семга", "Креветки", "Кальмары", "Мидии / морепродукты", "Куриная печень", "Говяжья печень",
+    "Куриные сердечки", "Колбаса", "Сосиски", "Бекон", "Ветчина", "Тунец (консервы)", "Соленая / копченая рыба",
+    "Крабовые палочки", "Тофу", "Сало", "Рыбные консервы"]);
+  const LEGUMES = ids(["Фасоль", "Нут", "Чечевица", "Горох"]);
+  const SIDE_DRY = ids(["Рис", "Гречка", "Макароны", "Лапша", "Булгур / кускус", "Перловка", "Пшено", "Киноа"]);
+  const SIDE_BULK = ids(["Картофель", "Батат", "Капуста", "Кабачки / цукини", "Баклажаны", "Цветная капуста", "Брокколи",
+    "Тыква", "Стручковая фасоль", "Зеленый горошек", "Морковь", "Болгарский перец", "Помидоры", "Свекла",
+    "Пекинская капуста", "Шампиньоны", "Грибы", "Кукуруза", "Квашеная капуста", "Брюссельская капуста"]);
+  const DOUGH = ids(["Мука пшеничная", "Слоеное тесто", "Тесто (готовое)", "Лаваш / тортильи", "Хлеб"]);
+  const EGGS = pidOf("Яйца");
+  const CURED = ids(["Бекон", "Колбаса", "Ветчина", "Сало", "Сосиски"]); // сытные — достаточно меньшего веса
+
+  // есть ли в блюде «мясная» часть и гарнир (по граммам на одну порцию)
+  const compCache = new Map();
+  function composition(rid) {
+    if (compCache.has(rid)) return compCache.get(rid);
+    const r = RECIPES[rid];
+    const per = 1 / (r.n || 4);
+    let prot = 0, dry = 0, bulk = 0, dough = 0, eggs = 0, leg = 0;
+    // тесто — гарнир только в пиццах, пирогах, пельменях и т. п.
+    const doughIsSide = r.course === "Паста и пицца" ||
+      r.tags.some((t) => /Пирог|Пицц|Хачапури|Чебурек|Пельмен|Вареник|Манты|Хинкали|Кесадиль|Буррито|Шаурм|Лазань/.test(t)) ||
+      /пирог|пицц|хачапури|чебурек|пельмен|вареник|манты|хинкали|кесадиль|буррито|шаурм|лазань|киш\b|галет/.test(r.lc);
+    for (const [pid, q] of QTY[rid]) {
+      const g = q * per;
+      if (PROT.has(pid)) prot += CURED.has(pid) ? g * 3 : g;
+      else if (LEGUMES.has(pid)) leg += g;
+      else if (SIDE_DRY.has(pid)) dry += g;
+      else if (SIDE_BULK.has(pid)) bulk += g;
+      else if (DOUGH.has(pid)) dough += doughIsSide ? g : 0; // хлеб/мука в котлетах — не гарнир
+      else if (pid === EGGS) eggs += g;
+    }
+    const c = {
+      protein: prot >= 40 || eggs >= 1.5 || leg >= 60,
+      side: dry * 3 + bulk + dough * 2 + leg * 3 >= 100,
+    };
+    compCache.set(rid, c);
+    return c;
+  }
+
+  // что докупить к блюду: [название, [[продукт, г или шт на человека]…]]
+  const SIDES = [
+    ["Макароны отварные", [["Макароны", 80], ["Сливочное масло", 10]]],
+    ["Гречка отварная", [["Гречка", 70], ["Сливочное масло", 10]]],
+    ["Рис отварной", [["Рис", 70], ["Сливочное масло", 5]]],
+    ["Картофельное пюре", [["Картофель", 250], ["Молоко", 50], ["Сливочное масло", 15]]],
+    ["Салат из огурцов и помидоров", [["Огурцы", 100], ["Помидоры", 100], ["Растительное масло", 10]]],
+  ];
+  const PROTEINS = [
+    ["Сосиски", [["Сосиски", 120]]],
+    ["Куриное филе на сковороде", [["Курица", 150], ["Растительное масло", 10]]],
+    ["Котлеты из фарша", [["Фарш", 130], ["Лук репчатый", 20], ["Яйца", 0.2]]],
+  ];
+  const VEG_PROTEINS = [["Яичница", [["Яйца", 2], ["Сливочное масло", 5]]]];
+  const ADDON = new Map([...SIDES, ...PROTEINS, ...VEG_PROTEINS].map(([n, items]) =>
+    [n, items.map(([p, g]) => [pidOf(p), g]).filter(([p]) => p !== undefined)]));
+
+  // какие добавки подходят к блюду на этом приёме пищи
+  function addonOptions(rid, meal) {
+    if (meal === "breakfast") return [[]];
+    const r = RECIPES[rid];
+    if (r.course === "Супы" || r.course === "Салаты") return [[]];
+    const c = composition(rid);
+    if (c.protein && c.side) return [[]];
+    if (c.protein) return SIDES.map(([n]) => [n]);
+    if (c.side) {
+      if (settings.diet === "Постн" || settings.diet === "Вегетарианск") {
+        return settings.diet === "Постн" ? [[]] : VEG_PROTEINS.map(([n]) => [n]);
+      }
+      return PROTEINS.map(([n]) => [n]);
+    }
+    return [[]];
   }
 
   // ---------- выбор рецептов ----------
@@ -95,6 +176,10 @@
     return RECIPES.filter((r) => {
       if (r.minor || !f(r) || !isMeal(meal, r)) return false;
       if (meal !== "breakfast" && r.k && r.k < 200) return false; // слишком лёгкое для обеда/ужина
+      if (meal !== "breakfast" && r.course !== "Супы") {
+        const c = composition(r.id);
+        if (!c.protein && !c.side) return false; // ни мяса, ни гарнира (жульен, лёгкие закуски) — не ужин
+      }
       if (maxT !== Infinity && (!r.m || r.m > maxT)) return false;
       if (diet && !r.tags.some((t) => t.startsWith(diet))) return false;
       const req = r.req.filter((p) => !A.IGNORE.has(p));
@@ -126,10 +211,19 @@
     let best = null;
     // для скорости — случайная выборка из подходящих
     const pool = cands.length > 400 ? cands.filter(() => Math.random() < 400 / cands.length) : cands;
+    const addUsed = new Map();
+    for (const s2 of chosen) for (const a of s2.add || []) addUsed.set(a, (addUsed.get(a) || 0) + 1);
     for (const r of pool) {
       if (used.has(r.id) || r.id === opts.exclude) continue;
-      const trial = chosen.concat([{ rid: r.id }]);
-      const marginal = basketOf(trial).total - base;
+      // к блюду подбираем добавку (гарнир или белок), которая выгоднее всего с учётом уже купленного
+      let bestAdd = null;
+      for (const add of addonOptions(r.id, meal)) {
+        const m = basketOf(chosen.concat([{ rid: r.id, add }])).total - base;
+        const repeat = add.reduce((n, a) => n + (addUsed.get(a) || 0), 0);
+        const sc = m / settings.people + (opts.cheapest ? 0 : repeat * 25 + Math.random() * 15);
+        if (!bestAdd || sc < bestAdd.sc) bestAdd = { add, m, sc };
+      }
+      const marginal = bestAdd.m;
       const perServing = marginal / settings.people;
       let score = perServing;
       if (!opts.cheapest) {
@@ -139,16 +233,16 @@
         if ((groups.get(groupOf(r)) || 0) >= 1) score += 60;
         score *= 0.8 + Math.random() * 0.5; // немного случайности, чтобы меню было разным
       }
-      if (!best || score < best.score) best = { rid: r.id, score };
+      if (!best || score < best.score) best = { rid: r.id, add: bestAdd.add, score };
     }
-    return best ? best.rid : undefined;
+    return best ? { rid: best.rid, add: best.add } : undefined;
   }
 
   function makePlan() {
     const slots = [];
     for (let d = 0; d < settings.days; d++) for (const m of settings.meals) slots.push({ day: d, meal: m });
     const candByMeal = Object.fromEntries(settings.meals.map((m) => [m, candidates(m)]));
-    for (let i = 0; i < slots.length; i++) slots[i].rid = pick(slots, i, slots[i].meal, candByMeal[slots[i].meal]);
+    for (let i = 0; i < slots.length; i++) Object.assign(slots[i], pick(slots, i, slots[i].meal, candByMeal[slots[i].meal]) || {});
     // не влезли в бюджет — заменяем самые дорогие блюда на самые дешёвые варианты
     for (let iter = 0; iter < slots.length * 2 && basketOf(slots).total > settings.budget; iter++) {
       let worst = -1, worstSave = 0;
@@ -158,9 +252,10 @@
         if (save > worstSave) { worstSave = save; worst = i; }
       });
       if (worst < 0) break;
-      const old = slots[worst].rid;
-      slots[worst].rid = pick(slots, worst, slots[worst].meal, candByMeal[slots[worst].meal], { cheapest: true, exclude: old });
-      if (basketOf(slots).total >= total) { slots[worst].rid = old; break; }
+      const old = { rid: slots[worst].rid, add: slots[worst].add };
+      const p = pick(slots, worst, slots[worst].meal, candByMeal[slots[worst].meal], { cheapest: true, exclude: old.rid });
+      if (p) Object.assign(slots[worst], p);
+      if (!p || basketOf(slots).total >= total) { Object.assign(slots[worst], old); break; }
     }
     plan = { slots: slots.filter((s) => s.rid !== undefined) };
     A.store.set("plan", plan);
@@ -228,7 +323,9 @@
         const without = basketOf(plan.slots.filter((_, j) => j !== i)).total;
         html += `<tr>
           <td class="muted">${DAY_NAMES[s.day % 7]}${settings.meals.length > 1 ? " · " + MEAL_NAMES[s.meal] : ""}</td>
-          <td><a href="#" data-open="${r.id}">${esc(r.t)}</a> <span class="muted">${esc(r.tm || "")}</span></td>
+          <td><a href="#" data-open="${r.id}">${esc(r.t)}</a> <span class="muted">${esc(r.tm || "")}</span>
+            ${(s.add || []).length ? `<br><span class="addon">+ ${esc(s.add.join(", "))}</span>
+              <button class="link small" data-addon="${i}">другое</button>` : ""}</td>
           <td class="num">+${rub(b.total - without)}</td>
           <td><button class="link small" data-reroll="${i}">заменить</button></td>
         </tr>`;
@@ -295,8 +392,18 @@
     if (rr) {
       const i = +rr.dataset.reroll;
       const s = plan.slots[i];
-      const rid = pick(plan.slots, i, s.meal, candidates(s.meal), { exclude: s.rid });
-      if (rid !== undefined) { s.rid = rid; A.store.set("plan", plan); render(); }
+      const p = pick(plan.slots, i, s.meal, candidates(s.meal), { exclude: s.rid });
+      if (p) { Object.assign(s, p); A.store.set("plan", plan); render(); }
+      return;
+    }
+    const ad = e.target.closest("[data-addon]");
+    if (ad) {   // следующий вариант гарнира/белка для этого блюда
+      const s = plan.slots[+ad.dataset.addon];
+      const opts = addonOptions(s.rid, s.meal);
+      const k = opts.findIndex((o) => o.join() === (s.add || []).join());
+      s.add = opts[(k + 1) % opts.length];
+      A.store.set("plan", plan);
+      render();
       return;
     }
     const op = e.target.closest("[data-open]");
