@@ -47,8 +47,19 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          # подписываем явно ключом из репозитория: копия в ~/.android не подхватывалась,
+          # и каждая сборка получала новый ключ («signatures do not match» при обновлении)
+          ./gradlew assembleDebug --no-daemon \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android-app/keystore/debug.keystore" \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=androiddebugkey \
+            -Pandroid.injected.signing.key.password=android
           cp app/build/outputs/apk/debug/app-debug.apk ../chto-prigotovit.apk
+          # проверка: сертификат APK должен совпадать с ключом из репозитория
+          want=$(keytool -list -v -keystore ../keystore/debug.keystore -storepass android | grep -m1 'SHA256:' | awk '{print $2}')
+          got=$(keytool -printcert -jarfile ../chto-prigotovit.apk | grep -m1 'SHA256:' | awk '{print $2}')
+          echo "want=$want got=$got"
+          test "$want" = "$got"
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
