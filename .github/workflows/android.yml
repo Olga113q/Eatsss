@@ -32,6 +32,9 @@ jobs:
           java-version: "21"
       - name: Create Android project
         run: |
+          # номер сборки — в User-Agent: сайт сравнивает его с последним релизом и предлагает обновиться
+          sed -i "s#ChtoPrigotovitApp/0#ChtoPrigotovitApp/${{ github.run_number }}#" capacitor.config.json
+          grep -n ChtoPrigotovitApp capacitor.config.json
           npm install --no-audit --no-fund
           npx cap add android
           npx capacitor-assets generate --android

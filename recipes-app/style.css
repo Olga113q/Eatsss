@@ -224,3 +224,14 @@ dialog h3 { margin: 18px 0 8px; }
 .top { padding-top: max(10px, env(safe-area-inset-top)); }
 body { padding-bottom: env(safe-area-inset-bottom); }
 @media (max-width: 900px) { .to-results { bottom: calc(16px + env(safe-area-inset-bottom)); } }
+
+/* ---- плашка «вышла новая версия приложения» ---- */
+.app-update {
+  position: fixed; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 1000;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 12px 14px; border-radius: var(--radius); background: var(--panel);
+  border: 1px solid var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,.15); font-size: 15px;
+}
+.app-update span { flex: 1 1 200px; }
+.app-update-get { background: var(--accent); color: #fff; padding: 8px 16px; border-radius: 999px; text-decoration: none; font-weight: 600; }
+.app-update-later { background: none; border: 0; color: var(--muted); padding: 8px; }
