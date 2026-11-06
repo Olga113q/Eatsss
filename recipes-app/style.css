@@ -216,3 +216,5 @@ dialog h3 { margin: 18px 0 8px; }
 .addon { font-size: 13px; color: var(--ok); }
 .bad { color: var(--bad); font-size: 13px; }
 .leftovers tr.keeps td { opacity: .75; }
+.serv { font-size: 14px; font-weight: normal; margin-left: 12px; white-space: nowrap; }
+.serv .ghost { padding: 0 10px; margin: 0 4px; }

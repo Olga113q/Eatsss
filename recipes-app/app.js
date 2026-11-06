@@ -437,10 +437,39 @@
   const modal = $("modal");
   let openRid = null;
 
-  function openRecipe(id) {
+  // пересчёт количества из рецепта на другое число порций: «500 г» ×0.5 → «250 г», «½ стакана» ×2 → «1 стакан»
+  const FR = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
+  function scaleQty(qty, f) {
+    if (!qty || Math.abs(f - 1) < 0.01) return qty;
+    const m = qty.match(/^\s*(\d+(?:[.,]\d+)?)?\s*([½¼¾⅓⅔])?(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/);
+    if (!m || (!m[1] && !m[2])) return qty; // «по вкусу», «щепотка»
+    let a = (m[1] ? parseFloat(m[1].replace(",", ".")) : 0) + (m[2] ? FR[m[2]] : 0);
+    if (m[3]) a = (a + parseFloat(m[3].replace(",", "."))) / 2;
+    const v = a * f;
+    const unit = m[4];
+    let txt;
+    if (/^(г|мл)\b/.test(unit) && v >= 20) txt = String(Math.round(v / 5) * 5);
+    else if (v >= 10 || (v >= 3 && /^(шт|зубч|пуч|голов|ломт|веточ|стеб|лист|кус|банк|упаков|пачк)/.test(unit))) txt = String(Math.round(v));
+    else {
+      const whole = Math.floor(v), rest = v - whole;
+      const frac = [[0, ""], [0.25, "¼"], [1 / 3, "⅓"], [0.5, "½"], [2 / 3, "⅔"], [0.75, "¾"], [1, "+"]]
+        .reduce((b, c) => (Math.abs(c[0] - rest) < Math.abs(b[0] - rest) ? c : b));
+      txt = frac[1] === "+" ? String(whole + 1) : (whole ? whole + (frac[1] ? " " + frac[1] : "") : frac[1] || "¼");
+    }
+    return `${txt} ${unit}`.trim();
+  }
+
+  let openServ = null;
+  function openRecipe(id, servings) {
+    if (id !== openRid) openServ = null;
     openRid = id;
     const r = RECIPES[id];
-    const rows = r.i.map(([pid, raw, qty, optional]) => {
+    const base = r.n || 4;
+    if (servings) openServ = servings;
+    const serv = openServ || base;
+    const f = serv / base;
+    const rows = r.i.map(([pid, raw, qty0, optional]) => {
+      const qty = scaleQty(qty0, f);
       const ignored = IGNORE.has(pid) || isSkipped(pid);
       const ok = have.has(pid);
       const cls = ignored ? "ign" : ok ? "yes" : optional ? "opt" : "no";
@@ -456,13 +485,20 @@
     $("modal-body").innerHTML = `
       ${IMAGES[r.u] ? pic(r, "hero") : ""}
       <h2>${esc(r.t)}</h2>
-      <div class="meta">${[r.course, r.cuisine, r.tm && "⏱ " + r.tm, r.n && r.n + " " + plural(r.n, "порция", "порции", "порций"), r.k && r.k + " ккал/порц."].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="meta">${[r.course, r.cuisine, r.tm && "⏱ " + r.tm, r.k && r.k + " ккал/порц."].filter(Boolean).map(esc).join(" · ")}</div>
       <div class="modal-actions">
         <button class="star-btn ${favs.has(r.id) ? "on" : ""}" data-mfav="${r.id}">★ ${favs.has(r.id) ? "В избранном" : "В избранное"}</button>
         ${missing.length ? `<button data-addshop="${r.id}">🛒 Недостающее в покупки (${missing.length})</button>` : ""}
         ${r.u ? `<a href="${esc(r.u)}" target="_blank" rel="noopener">Открыть на eda.ru ↗</a>` : ""}
       </div>
-      <h3>Ингредиенты</h3>
+      <h3>Ингредиенты
+        <span class="serv">
+          <button class="ghost" data-serv="-1" aria-label="Меньше порций">−</button>
+          ${serv} ${plural(serv, "порция", "порции", "порций")}
+          <button class="ghost" data-serv="1" aria-label="Больше порций">+</button>
+        </span>
+      </h3>
+      ${serv !== base ? `<p class="muted">Количества пересчитаны с ${base} ${plural(base, "порции", "порций", "порций")} в рецепте на ${serv}.</p>` : ""}
       <ul class="ings">${rows}</ul>
       <h3>Приготовление</h3>
       <ol class="steps">${r.s.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`;
@@ -470,6 +506,13 @@
   }
 
   $("modal-body").addEventListener("click", (e) => {
+    const sv = e.target.closest("[data-serv]");
+    if (sv) {
+      const r = RECIPES[openRid];
+      openServ = Math.max(1, Math.min(24, (openServ || r.n || 4) + +sv.dataset.serv));
+      openRecipe(openRid);
+      return;
+    }
     const t = e.target.closest("[data-toggle]");
     if (t) {
       const pid = +t.dataset.toggle;

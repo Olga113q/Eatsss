@@ -24,7 +24,7 @@
   const DAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
   const settings = Object.assign(
-    { people: 2, days: 7, meals: ["dinner"], budget: 5000, store: "best", usePantry: true, maxTime: "", diet: "", wholeChicken: false },
+    { people: 2, days: 7, meals: ["dinner"], budget: 5000, store: "best", usePantry: true, maxTime: "", diet: "", wholeChicken: false, fullRecipe: true },
     A.store.get("plan-settings", {}),
   );
   let plan = A.store.get("plan", null); // {slots:[{day, meal, rid}], settings}
@@ -103,12 +103,19 @@
 
   const inPantry = (pid) => settings.usePantry && A.have.has(pid);
 
+  // на сколько порций готовим блюдо: «на ужин и обед» — вдвое больше людей (2 человека → 4 порции),
+  // рецепт пересчитывается под это число; иначе — ровно по числу людей
+  function servingsOf(rid) {
+    return settings.fullRecipe ? settings.people * 2 : settings.people;
+  }
+
   function basketOf(slots) {
     const need = new Map();
     const unpriced = new Set();
     for (const s of slots) {
       const r = RECIPES[s.rid];
-      const k = settings.people / (r.n || 4);
+      const serv = servingsOf(s.rid);
+      const k = serv / (r.n || 4);
       for (const pid of r.req) {
         if (A.IGNORE.has(pid)) continue;
         const q = QTY[s.rid].get(pid);
@@ -116,7 +123,7 @@
         need.set(pid, (need.get(pid) || 0) + q * k);
       }
       for (const a of s.add || []) {
-        for (const [pid, g] of ADDON.get(a) || []) need.set(pid, (need.get(pid) || 0) + g * settings.people);
+        for (const [pid, g] of ADDON.get(a) || []) need.set(pid, (need.get(pid) || 0) + g * serv);
       }
     }
     const lines = [];
@@ -217,7 +224,7 @@
   function addonOptions(rid, meal) {
     if (meal === "breakfast") return [[]];
     const r = RECIPES[rid];
-    if (r.course === "Супы" || r.course === "Салаты") return [[]];
+    if (r.course === "Супы") return [[]];
     const c = composition(rid);
     if (c.protein && c.side) return [[]];
     if (c.protein) return SIDES.map(([n]) => [n]);
@@ -239,7 +246,7 @@
     if (meal === "breakfast") return true;
     if (MAIN_COURSES.has(r.course)) return true;
     if (meal === "lunch" && r.course === "Супы") return true;
-    return r.course === "Салаты" && !!proteinOf(r);
+    return false; // салаты — не ужин
   };
 
   function candidates(meal) {
@@ -281,7 +288,9 @@
       groups.set(groupOf(r), (groups.get(groupOf(r)) || 0) + 1);
     }
     // ориентир — бюджет на порцию: не тратить больше, но и не кормить «пустым» ради экономии
-    const target = settings.budget > 0 ? settings.budget / Math.max(1, slots.length * settings.people) : 150;
+    // ориентир на порцию: бюджет делим на все порции недели (с целым рецептом — это ужин и обед на всех)
+    const servPerSlot = settings.fullRecipe ? settings.people * 2 : settings.people;
+    const target = settings.budget > 0 ? settings.budget / Math.max(1, slots.length * servPerSlot) : 150;
     let best = null;
     // для скорости — случайная выборка из подходящих
     let pool = cands.length > 400 ? cands.filter(() => Math.random() < 400 / cands.length) : cands;
@@ -303,7 +312,7 @@
     for (const r of pool) {
       if (used.has(r.id) || r.id === opts.exclude) continue;
       // к блюду подбираем добавку (гарнир или белок), которая выгоднее всего с учётом уже купленного
-      const P_ = settings.people;
+      const P_ = servingsOf(r.id);
       let bestAdd = null;
       for (const add of addonOptions(r.id, meal)) {
         const tb = basketOf(chosen.concat([{ rid: r.id, add }]));
@@ -419,6 +428,7 @@
         <div class="plan-meals">
           ${Object.entries(MEAL_NAMES).map(([m, n]) => `<label><input type="checkbox" class="pl-meal" value="${m}" ${settings.meals.includes(m) ? "checked" : ""}> ${n}</label>`).join("")}
           <label title="Продукты, отмеченные «есть дома», не покупать"><input type="checkbox" id="pl-pantry" ${settings.usePantry ? "checked" : ""}> учесть то, что есть дома</label>
+          <label title="Каждое блюдо готовится на ужин и обед на следующий день: порций вдвое больше, чем людей (2 человека → 4 порции). Рецепт пересчитывается под это число"><input type="checkbox" id="pl-full" ${settings.fullRecipe ? "checked" : ""}> готовить с запасом на обед (порций = 2 × людей)</label>
           <label title="Курицу покупать только целыми тушками и разделывать: филе, ножки и крылья пойдут в разные блюда, каркас — на бульон"><input type="checkbox" id="pl-whole" ${settings.wholeChicken ? "checked" : ""}> курицу — целой тушкой и разделывать</label>
         </div>
         <button id="pl-make" class="primary">Составить меню</button>
@@ -430,7 +440,8 @@
     let html = form();
     if (plan && plan.slots.length) {
       const b = basketOf(plan.slots);
-      const per = b.total / Math.max(1, plan.slots.length * settings.people);
+      const servTotal = plan.slots.reduce((n, sl) => n + servingsOf(sl.rid), 0);
+      const per = b.total / Math.max(1, servTotal);
       const over = b.total > settings.budget;
       const approx = b.lines.filter((l) => l.offer && l.offer[0] === "approx").reduce((n, l) => n + l.cost, 0);
       html += `<div class="plan-total ${over ? "over" : ""}">
@@ -447,7 +458,7 @@
         const without = basketOf(plan.slots.filter((_, j) => j !== i)).total;
         html += `<tr>
           <td class="muted">${DAY_NAMES[s.day % 7]}${settings.meals.length > 1 ? " · " + MEAL_NAMES[s.meal] : ""}</td>
-          <td><a href="#" data-open="${r.id}">${esc(r.t)}</a> <span class="muted">${esc(r.tm || "")}</span>
+          <td><a href="#" data-open="${r.id}">${esc(r.t)}</a> <span class="muted">${esc(r.tm || "")} · на ${servingsOf(r.id)} ${plural(servingsOf(r.id), "порцию", "порции", "порций")}</span>
             ${(s.add || []).length ? `<br><span class="addon">+ ${esc(s.add.join(", "))}</span>
               <button class="link small" data-addon="${i}">другое</button>` : ""}</td>
           <td class="num">+${rub(b.total - without)}</td>
@@ -554,6 +565,7 @@
     settings.diet = $("pl-diet").value;
     settings.usePantry = $("pl-pantry").checked;
     settings.wholeChicken = $("pl-whole").checked;
+    settings.fullRecipe = $("pl-full").checked;
     const meals = [...document.querySelectorAll(".pl-meal:checked")].map((x) => x.value);
     settings.meals = meals.length ? meals : ["dinner"];
     A.store.set("plan-settings", settings);
@@ -585,7 +597,7 @@
       return;
     }
     const op = e.target.closest("[data-open]");
-    if (op) { e.preventDefault(); A.openRecipe(+op.dataset.open); return; }
+    if (op) { e.preventDefault(); A.openRecipe(+op.dataset.open, servingsOf(+op.dataset.open)); return; }
     if (e.target.id === "pl-toshop") {
       const b = basketOf(plan.slots);
       const unit = (pid) => (OFFERS.get(pid) || {}).u || "g";
