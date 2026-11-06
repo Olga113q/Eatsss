@@ -1,6 +1,6 @@
 // Офлайн-режим: файлы сайта и базы рецептов сохраняются в телефоне.
 // Пока есть сеть — берём свежие версии (так обновления приходят сами), без сети — сохранённые.
-const VERSION = "v1";
+const VERSION = "v2";
 const APP = "app-" + VERSION;
 const IMG = "img-" + VERSION;
 const SHELL = ["./", "index.html", "app.js", "planner.js", "style.css", "manifest.webmanifest",

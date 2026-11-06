@@ -611,18 +611,27 @@
     },
   };
 
-  // ---------- кнопка «назад» в Android-приложении ----------
-  // закрывает открытое окно (рецепт, план, покупки), а если ничего не открыто — сворачивает приложение
-  const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
-  if (CapApp) {
-    CapApp.addListener("backButton", () => {
+  // ---------- кнопка «назад» (телефон, приложение) ----------
+  // Открытое окно (рецепт, план, покупки) добавляет шаг в историю браузера:
+  // «назад» закрывает окно, а не уходит со страницы.
+  (() => {
+    const showModal = HTMLDialogElement.prototype.showModal;
+    let closingByBack = false;
+    HTMLDialogElement.prototype.showModal = function () {
+      showModal.call(this);
+      history.pushState({ dlg: this.id }, "");
+      const onClose = () => {
+        this.removeEventListener("close", onClose);
+        if (!closingByBack && history.state && history.state.dlg) history.back();
+        closingByBack = false;
+      };
+      this.addEventListener("close", onClose);
+    };
+    window.addEventListener("popstate", () => {
       const open = [...document.querySelectorAll("dialog[open]")];
-      if (open.length) { open[open.length - 1].close(); return; }
-      const panel = document.querySelector(".ms-panel:not([hidden])");
-      if (panel) { panel.hidden = true; return; }
-      CapApp.minimizeApp ? CapApp.minimizeApp() : CapApp.exitApp();
+      if (open.length) { closingByBack = true; open[open.length - 1].close(); }
     });
-  }
+  })();
 
   // ---------- старт ----------
   renderPantry();

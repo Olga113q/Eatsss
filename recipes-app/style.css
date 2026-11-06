@@ -218,3 +218,8 @@ dialog h3 { margin: 18px 0 8px; }
 .leftovers tr.keeps td { opacity: .75; }
 .serv { font-size: 14px; font-weight: normal; margin-left: 12px; white-space: nowrap; }
 .serv .ghost { padding: 0 10px; margin: 0 4px; }
+
+/* вырезы и системные панели телефона */
+.top { padding-top: max(10px, env(safe-area-inset-top)); }
+body { padding-bottom: env(safe-area-inset-bottom); }
+@media (max-width: 900px) { .to-results { bottom: calc(16px + env(safe-area-inset-bottom)); } }

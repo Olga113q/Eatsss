@@ -3,10 +3,11 @@
   "appName": "Что приготовить?",
   "webDir": "www",
   "server": {
-    "url": "https://olga113q.github.io/Eatsss/recipes-app/",
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "allowNavigation": ["olga113q.github.io"]
   },
   "android": {
-    "backgroundColor": "#faf7f2"
+    "backgroundColor": "#faf7f2",
+    "adjustMarginsForEdgeToEdge": "auto"
   }
 }
