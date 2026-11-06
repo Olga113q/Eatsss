@@ -24,7 +24,7 @@
   const DAY_NAMES = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
   const settings = Object.assign(
-    { people: 2, days: 7, meals: ["dinner"], budget: 5000, store: "best", usePantry: true, maxTime: "", diet: "" },
+    { people: 2, days: 7, meals: ["dinner"], budget: 5000, store: "best", usePantry: true, maxTime: "", diet: "", wholeChicken: false },
     A.store.get("plan-settings", {}),
   );
   let plan = A.store.get("plan", null); // {slots:[{day, meal, rid}], settings}
@@ -49,6 +49,58 @@
     return best;
   }
 
+  // Курица: можно купить тушку и разделать (≈22% филе, 32% ножки, 10% крылья, остальное — на бульон)
+  // или брать части отдельно. Перебираем число тушек и берём самый дешёвый вариант.
+  const CH = { whole: null, fillet: null, legs: null, wings: null };
+  const YIELD = { fillet: 0.22, legs: 0.32, wings: 0.10 };
+  function buyChicken(need) {
+    if (CH.whole === null) {
+      CH.whole = (A.BY_NAME.get("Курица") || {}).id; CH.fillet = (A.BY_NAME.get("Куриное филе") || {}).id;
+      CH.legs = (A.BY_NAME.get("Куриные ножки") || {}).id; CH.wings = (A.BY_NAME.get("Куриные крылья") || {}).id;
+    }
+    const parts = ["fillet", "legs", "wings"];
+    const q = { whole: 0, fillet: 0, legs: 0, wings: 0 };
+    let any = false;
+    for (const k of ["whole", ...parts]) {
+      const pid = CH[k];
+      if (pid === undefined || !need.has(pid) || inPantry(pid)) continue;
+      q[k] = need.get(pid);
+      any = true;
+    }
+    if (!any) return null;
+    const carcass = offersFor(CH.whole).slice().sort((a, b) => a[2] / a[3] - b[2] / b[3])[0];
+    let best = null;
+    const nMin = carcass ? Math.ceil(q.whole / carcass[3] - 0.08) : 0;
+    const nMax = carcass ? nMin + Math.ceil((q.fillet + q.legs + q.wings) / (carcass[3] * 0.2)) + 1 : 0;
+    for (let n = nMin; n <= Math.min(nMax, nMin + 8); n++) {
+      const rest = carcass ? Math.max(0, n * carcass[3] - q.whole) : 0; // то, что остаётся на разделку
+      let cost = carcass ? n * carcass[2] : 0;
+      const buys = [];
+      let ok = true;
+      for (const k of parts) {
+        const lack = q[k] - rest * YIELD[k];
+        if (lack <= 30) continue;
+        if (settings.wholeChicken && carcass) { ok = false; break; } // только тушками — берём ещё одну
+        const b = buy(CH[k], lack);
+        if (!b) { ok = false; break; }
+        cost += b.cost;
+        buys.push({ pid: CH[k], need: q[k], fromCarcass: rest * YIELD[k], ...b });
+      }
+      if (!ok) continue;
+      if (!best || cost < best.cost) best = { n, rest, cost, buys };
+    }
+    if (!best) return null; // нет цен — пусть обычная логика пометит «без цены»
+    const lines = [];
+    if (best.n > 0) {
+      lines.push({
+        pid: CH.whole, need: q.whole, offer: carcass, packs: best.n, cost: best.n * carcass[2],
+        cut: parts.map((k) => ({ name: PRODUCTS[CH[k]].name, get: best.rest * YIELD[k], need: q[k] })),
+      });
+    }
+    lines.push(...best.buys);
+    return { lines, total: best.cost, pids: ["whole", ...parts].map((k) => CH[k]).filter((p) => p !== undefined && need.has(p) && !inPantry(p)) };
+  }
+
   const inPantry = (pid) => settings.usePantry && A.have.has(pid);
 
   function basketOf(slots) {
@@ -69,6 +121,8 @@
     }
     const lines = [];
     let total = 0;
+    const ch = buyChicken(need);
+    if (ch) { lines.push(...ch.lines); total += ch.total; ch.pids.forEach((p) => need.delete(p)); }
     for (const [pid, q] of need) {
       if (inPantry(pid)) { lines.push({ pid, need: q, pantry: true }); continue; }
       const b = buy(pid, q);
@@ -76,13 +130,28 @@
       total += b.cost;
       lines.push({ pid, need: q, ...b });
     }
-    return { lines, total, unpriced };
+    // «пропадёт»: оплаченная, но не использованная часть скоропортящихся продуктов
+    let waste = 0;
+    for (const l of lines) {
+      if (!l.offer || l.offer[0] === "approx" || DURABLE.has(PRODUCTS[l.pid].cat)) continue;
+      if (l.cut) {
+        const unused = l.cut.reduce((n, c) => n + Math.max(0, c.get - c.need), 0);
+        waste += (unused / (l.packs * l.offer[3])) * l.cost;
+      } else {
+        const left = l.packs * l.offer[3] - l.need - (l.fromCarcass || 0);
+        if (left > 0) waste += (left / (l.packs * l.offer[3])) * l.cost;
+      }
+    }
+    return { lines, total, unpriced, waste };
   }
+  // то, что спокойно хранится (крупы, специи, масло, консервы…) — остатки не считаем потерей
+  const DURABLE = new Set(["Специи", "Крупы, мука, макароны", "Масла", "Соусы и консервы", "Для выпечки и сладкое",
+    "Напитки и алкоголь", "Сухофрукты и орехи", "Бобовые", "Базовое", "Другое"]);
 
   // ---------- состав ужина: белок + гарнир ----------
   const pidOf = (n) => (A.BY_NAME.get(n) || {}).id;
   const ids = (names) => new Set(names.map(pidOf).filter((x) => x !== undefined));
-  const PROT = ids(["Курица", "Говядина", "Свинина", "Фарш", "Индейка", "Баранина", "Утка", "Кролик", "Белая рыба",
+  const PROT = ids(["Курица", "Куриное филе", "Куриные ножки", "Куриные крылья", "Говядина", "Свинина", "Фарш", "Индейка", "Баранина", "Утка", "Кролик", "Белая рыба",
     "Лосось / семга", "Креветки", "Кальмары", "Мидии / морепродукты", "Куриная печень", "Говяжья печень",
     "Куриные сердечки", "Колбаса", "Сосиски", "Бекон", "Ветчина", "Тунец (консервы)", "Соленая / копченая рыба",
     "Крабовые палочки", "Тофу", "Сало", "Рыбные консервы"]);
@@ -133,7 +202,7 @@
   ];
   const PROTEINS = [
     ["Сосиски", [["Сосиски", 120]]],
-    ["Куриное филе на сковороде", [["Курица", 150], ["Растительное масло", 10]]],
+    ["Куриное филе на сковороде", [["Куриное филе", 150], ["Растительное масло", 10]]],
     ["Котлеты из фарша", [["Фарш", 130], ["Лук репчатый", 20], ["Яйца", 0.2]]],
   ];
   const VEG_PROTEINS = [["Яичница", [["Яйца", 2], ["Сливочное масло", 5]]]];
@@ -191,14 +260,15 @@
   }
 
   // главный «белок» рецепта — чтобы не было курицы семь дней подряд
-  const PROTEIN = /^(Курица|Говядина|Свинина|Фарш|Индейка|Баранина|Утка|Белая рыба|Лосось \/ семга|Креветки|Куриная печень|Колбаса|Сосиски|Бекон|Ветчина)$/;
-  const proteinOf = (r) => r.req.map((p) => PRODUCTS[p].name).find((n) => PROTEIN.test(n)) || "";
+  const PROTEIN = /^(Курица|Куриное филе|Куриные ножки|Куриные крылья|Говядина|Свинина|Фарш|Индейка|Баранина|Утка|Белая рыба|Лосось \/ семга|Креветки|Куриная печень|Колбаса|Сосиски|Бекон|Ветчина)$/;
+  const proteinOf = (r) => (r.req.map((p) => PRODUCTS[p].name).find((n) => PROTEIN.test(n)) || "").replace(/^Кур.*/, "Курица");
   const groupOf = (r) => r.tags.find((t) => !/кухня|Пошаговые|еда$|меню$|Горячие закуски/.test(t)) || r.course;
 
+  const WASTE_W = 0.8; // насколько «дорого» выбрасывать продукты при выборе блюд
   function pick(slots, idx, meal, cands, opts = {}) {
     const chosen = slots.filter((s, i) => i !== idx && s.rid !== undefined);
     const used = new Set(chosen.map((s) => s.rid));
-    const base = basketOf(chosen).total;
+    const baseB = basketOf(chosen);
     const proteins = new Map();
     const groups = new Map();
     for (const s of chosen) {
@@ -210,28 +280,51 @@
     const target = settings.budget > 0 ? settings.budget / Math.max(1, slots.length * settings.people) : 150;
     let best = null;
     // для скорости — случайная выборка из подходящих
-    const pool = cands.length > 400 ? cands.filter(() => Math.random() < 400 / cands.length) : cands;
+    let pool = cands.length > 400 ? cands.filter(() => Math.random() < 400 / cands.length) : cands;
+    if (opts.include !== undefined && !pool.some((r) => r.id === opts.include)) pool = pool.concat([RECIPES[opts.include]]);
+    // обязательно смотрим блюда, которые доедают уже купленное (ножки и крылья от тушки, полкочана капусты…)
+    const leftPids = new Set();
+    for (const l of baseB.lines) {
+      if (!l.offer || l.offer[0] === "approx" || DURABLE.has(PRODUCTS[l.pid].cat)) continue;
+      if (l.cut) {
+        for (const c of l.cut) if (c.get - c.need > 150) leftPids.add((A.BY_NAME.get(c.name) || {}).id);
+      } else if (l.packs * l.offer[3] - l.need - (l.fromCarcass || 0) > Math.max(150, l.need * 0.3)) leftPids.add(l.pid);
+    }
+    if (leftPids.size) {
+      const inPool = new Set(pool.map((r) => r.id));
+      pool = pool.concat(cands.filter((r) => !inPool.has(r.id) && r.req.some((p) => leftPids.has(p))).slice(0, 300));
+    }
     const addUsed = new Map();
     for (const s2 of chosen) for (const a of s2.add || []) addUsed.set(a, (addUsed.get(a) || 0) + 1);
     for (const r of pool) {
       if (used.has(r.id) || r.id === opts.exclude) continue;
       // к блюду подбираем добавку (гарнир или белок), которая выгоднее всего с учётом уже купленного
+      const P_ = settings.people;
       let bestAdd = null;
       for (const add of addonOptions(r.id, meal)) {
-        const m = basketOf(chosen.concat([{ rid: r.id, add }])).total - base;
+        const tb = basketOf(chosen.concat([{ rid: r.id, add }]));
+        const cash = tb.total - baseB.total;              // сколько реально докупить
+        const dWaste = tb.waste - baseB.waste;            // < 0, если блюдо доедает остатки
+        const value = Math.max(cash - dWaste, cash);      // стоимость продуктов блюда вместе с доеденными остатками
+        const spend = cash + dWaste * WASTE_W;            // деньги + то, что не пропадёт
         const repeat = add.reduce((n, a) => n + (addUsed.get(a) || 0), 0);
-        const sc = m / settings.people + (opts.cheapest ? 0 : repeat * 25 + Math.random() * 15);
-        if (!bestAdd || sc < bestAdd.sc) bestAdd = { add, m, sc };
+        let sc;
+        if (opts.cheapest) sc = spend / P_;
+        else {
+          // «полноценность» — по стоимости всего блюда (с остатками), экономия — по реальным тратам;
+          // повтор одной и той же добавки и вообще «блюдо + добавка» (готовить два блюда) — чуть хуже
+          sc = Math.max(0, value / P_ - target) * 2 + Math.max(0, target * 0.7 - value / P_) * 1.5 + (spend / P_) * 0.3 +
+            repeat * 60 + (add.length ? 20 : 0) + (opts.stable ? 0 : Math.random() * 15);
+        }
+        if (!bestAdd || sc < bestAdd.sc) bestAdd = { add, sc };
       }
-      const marginal = bestAdd.m;
-      const perServing = marginal / settings.people;
-      let score = perServing;
+      let score = bestAdd.sc;
       if (!opts.cheapest) {
-        score = Math.max(0, perServing - target) * 3 + Math.max(0, target * 0.6 - perServing) + target * 0.1;
         const pr = proteinOf(r);
-        if (pr && (proteins.get(pr) || 0) >= 2) score += 200;
+        const usesLeft = r.req.some((p) => leftPids.has(p)); // доедает купленное — повтор курицы не страшен
+        if (pr && !usesLeft && (proteins.get(pr) || 0) >= 2) score += 200;
         if ((groups.get(groupOf(r)) || 0) >= 1) score += 60;
-        score *= 0.8 + Math.random() * 0.5; // немного случайности, чтобы меню было разным
+        if (!opts.stable) score *= 0.8 + Math.random() * 0.5; // немного случайности, чтобы меню было разным
       }
       if (!best || score < best.score) best = { rid: r.id, add: bestAdd.add, score };
     }
@@ -242,7 +335,32 @@
     const slots = [];
     for (let d = 0; d < settings.days; d++) for (const m of settings.meals) slots.push({ day: d, meal: m });
     const candByMeal = Object.fromEntries(settings.meals.map((m) => [m, candidates(m)]));
-    for (let i = 0; i < slots.length; i++) Object.assign(slots[i], pick(slots, i, slots[i].meal, candByMeal[slots[i].meal]) || {});
+    // «курицу — целой тушкой»: сразу ставим два блюда из одной тушки — на филе и на ножки/крылья
+    if (settings.wholeChicken && slots.length >= 2) {
+      const fil = (A.BY_NAME.get("Куриное филе") || {}).id;
+      const legsWings = [(A.BY_NAME.get("Куриные ножки") || {}).id, (A.BY_NAME.get("Куриные крылья") || {}).id];
+      const fillets = candByMeal[slots[0].meal].filter((r) => r.req.includes(fil));
+      const legs = candByMeal[slots[0].meal].filter((r) => r.req.some((p) => legsWings.includes(p)));
+      const a = Math.floor(Math.random() * Math.ceil(slots.length / 2));
+      const b = a + Math.max(2, Math.floor(slots.length / 2)) < slots.length ? a + Math.max(2, Math.floor(slots.length / 2)) : slots.length - 1;
+      if (fillets.length && legs.length && a !== b) {
+        Object.assign(slots[a], pick(slots, a, slots[a].meal, fillets) || {});
+        Object.assign(slots[b], pick(slots, b, slots[b].meal, legs) || {});
+        slots[a].fixed = slots[b].fixed = true;
+      }
+    }
+    for (let i = 0; i < slots.length; i++) {
+      if (!slots[i].fixed) Object.assign(slots[i], pick(slots, i, slots[i].meal, candByMeal[slots[i].meal]) || {});
+    }
+    // второй и третий проход: переподбираем каждое блюдо при уже известных остальных —
+    // так подтягиваются блюда на остатки (вторая половина тушки, капуста, сметана…)
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < slots.length; i++) {
+        if (slots[i].fixed) continue;
+        const p = pick(slots, i, slots[i].meal, candByMeal[slots[i].meal], { include: slots[i].rid, stable: true });
+        if (p) Object.assign(slots[i], p);
+      }
+    }
     // не влезли в бюджет — заменяем самые дорогие блюда на самые дешёвые варианты
     for (let iter = 0; iter < slots.length * 2 && basketOf(slots).total > settings.budget; iter++) {
       let worst = -1, worstSave = 0;
@@ -297,6 +415,7 @@
         <div class="plan-meals">
           ${Object.entries(MEAL_NAMES).map(([m, n]) => `<label><input type="checkbox" class="pl-meal" value="${m}" ${settings.meals.includes(m) ? "checked" : ""}> ${n}</label>`).join("")}
           <label title="Продукты, отмеченные «есть дома», не покупать"><input type="checkbox" id="pl-pantry" ${settings.usePantry ? "checked" : ""}> учесть то, что есть дома</label>
+          <label title="Курицу покупать только целыми тушками и разделывать: филе, ножки и крылья пойдут в разные блюда, каркас — на бульон"><input type="checkbox" id="pl-whole" ${settings.wholeChicken ? "checked" : ""}> курицу — целой тушкой и разделывать</label>
         </div>
         <button id="pl-make" class="primary">Составить меню</button>
       </div>
@@ -313,6 +432,7 @@
       html += `<div class="plan-total ${over ? "over" : ""}">
         Итого корзина: <b>${rub(b.total)}</b> из ${rub(settings.budget)}
         · ~${rub(per)} на порцию
+        ${b.waste > 30 ? `<br><span class="muted">останется неиспользованным примерно на ${rub(b.waste)} (скоропортящееся)</span>` : ""}
         ${approx ? `<br><span class="muted">из них ≈${rub(approx)} — по примерным ценам (этих продуктов нет в собранных ценах магазинов)</span>` : ""}
         ${over ? "<br>Не влезает в бюджет даже с самыми дешёвыми блюдами — уменьшите число дней/приёмов пищи или увеличьте бюджет." : ""}
         ${b.unpriced.size ? `<br><span class="muted">Без цены (не посчитано): ${[...b.unpriced].map((p) => esc(PRODUCTS[p].name)).join(", ")}</span>` : ""}
@@ -342,6 +462,14 @@
     $("plan-body").innerHTML = html;
   }
 
+  // сколько останется от купленных упаковок (если заметно)
+  function leftover(l, u) {
+    if (!l.offer || l.offer[0] === "approx") return "";
+    const left = l.packs * l.offer[3] - l.need - (l.fromCarcass || 0);
+    if (left <= Math.max(u === "pcs" ? 1 : 60, l.need * 0.2)) return "";
+    return `, останется ~${fmtQty(left, u)}`;
+  }
+
   function shoppingList(b) {
     const buyLines = b.lines.filter((l) => l.offer).sort((a, c) => c.cost - a.cost);
     const byStore = {};
@@ -353,7 +481,11 @@
       html += `<p class="muted">${Object.entries(byStore).map(([s, c]) => `${esc(STORES[s] ? STORES[s].name : s)}: ${rub(c)}`).join(" · ")}</p>`;
     }
     html += `<table class="plan-cart">` + buyLines.map((l) => `<tr>
-        <td><b>${esc(PRODUCTS[l.pid].name)}</b><br><span class="muted">нужно ~${fmtQty(l.need, unit(l.pid))}</span></td>
+        <td><b>${esc(PRODUCTS[l.pid].name)}</b><br><span class="muted">${l.cut
+          ? (l.need > 30 ? `целиком ~${fmtQty(l.need, "g")}; ` : "") + "разделать: " + l.cut.map((c) =>
+              `${c.name.replace("Куриное ", "").replace("Куриные ", "")} ~${fmtQty(c.get, "g")}${c.need > 30 ? ` (нужно ${fmtQty(c.need, "g")})` : ""}`).join(", ") + "; каркас" +
+              (l.cut.some((c) => c.get - c.need > 100) ? " и остальное" : "") + " — на бульон"
+          : `нужно ~${fmtQty(l.need, unit(l.pid))}${l.fromCarcass > 30 ? ` (ещё ~${fmtQty(l.fromCarcass, "g")} из тушки)` : ""}${leftover(l, unit(l.pid))}`}</span></td>
         ${l.offer[0] === "approx"
           ? `<td><span class="approx">≈ примерная цена</span><br><span class="muted">упаковка ~${fmtQty(l.offer[3], unit(l.pid))}, в собранных ценах магазинов нет</span></td>
              <td class="num">${l.packs} × ≈${rub(l.offer[2])}</td>
@@ -376,6 +508,7 @@
     settings.maxTime = $("pl-time").value;
     settings.diet = $("pl-diet").value;
     settings.usePantry = $("pl-pantry").checked;
+    settings.wholeChicken = $("pl-whole").checked;
     const meals = [...document.querySelectorAll(".pl-meal:checked")].map((x) => x.value);
     settings.meals = meals.length ? meals : ["dinner"];
     A.store.set("plan-settings", settings);
