@@ -1,0 +1,12 @@
+{
+  "appId": "ru.eatsss.cook",
+  "appName": "Что приготовить?",
+  "webDir": "www",
+  "server": {
+    "url": "https://olga113q.github.io/Eatsss/recipes-app/",
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#faf7f2"
+  }
+}

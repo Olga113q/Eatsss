@@ -1,0 +1,60 @@
+name: Android APK
+
+# Собирает приложение «Что приготовить?» (оболочка вокруг сайта на GitHub Pages)
+# и выкладывает APK в релиз «android» — постоянная ссылка:
+# https://github.com/Olga113q/Eatsss/releases/download/android/chto-prigotovit.apk
+on:
+  workflow_dispatch:
+  push:
+    branches: [ccr-75b67d4e-vc2cwf]
+    paths:
+      - android-app/**
+      - .github/workflows/android.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Create Android project
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          npx capacitor-assets generate --android
+          npx cap sync android
+      - name: Version and signing key
+        run: |
+          # номер версии растёт с каждой сборкой — новый APK ставится поверх старого
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -n "versionCode\|versionName" android/app/build.gradle
+          # всегда один и тот же ключ подписи — иначе Android не даст обновить приложение без удаления
+          mkdir -p ~/.android && cp keystore/debug.keystore ~/.android/debug.keystore
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../chto-prigotovit.apk
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create android chto-prigotovit.apk -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Android-приложение (сборка ${{ github.run_number }})" \
+            --notes "Скачайте chto-prigotovit.apk на телефон и откройте. Новая сборка ставится поверх старой, данные сохраняются." \
+            --prerelease

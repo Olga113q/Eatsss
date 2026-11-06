@@ -611,6 +611,19 @@
     },
   };
 
+  // ---------- кнопка «назад» в Android-приложении ----------
+  // закрывает открытое окно (рецепт, план, покупки), а если ничего не открыто — сворачивает приложение
+  const CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (CapApp) {
+    CapApp.addListener("backButton", () => {
+      const open = [...document.querySelectorAll("dialog[open]")];
+      if (open.length) { open[open.length - 1].close(); return; }
+      const panel = document.querySelector(".ms-panel:not([hidden])");
+      if (panel) { panel.hidden = true; return; }
+      CapApp.minimizeApp ? CapApp.minimizeApp() : CapApp.exitApp();
+    });
+  }
+
   // ---------- старт ----------
   renderPantry();
   updateCounters();

@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Что приготовить?</title>
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#e8590c">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 </head>
 <body>
 <header class="top">
@@ -81,5 +85,9 @@
 <script src="data/plan.js" onerror="void 0"></script>
 <script src="app.js"></script>
 <script src="planner.js"></script>
+<script>
+  // офлайн-режим (не для открытия файла с диска)
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js");
+</script>
 </body>
 </html>
