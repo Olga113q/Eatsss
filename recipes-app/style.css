@@ -299,3 +299,12 @@ a.btn-link { text-decoration: none; color: var(--text); display: inline-flex; al
   .ed-ings td { padding: 0; }
   .ed-ings td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---- «мне не подходит» и цена блюда ---- */
+.cost { color: var(--ok); font-weight: 600; white-space: nowrap; }
+.cost-line { font-size: 14px; background: var(--ok-soft); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.nofit { font-size: 12px; color: var(--bad); }
+.m-prefs { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 14px; margin-bottom: 10px; }
+.m-prefs summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.m-prefs .pref { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 14px; }
+.m-prefs .muted { margin: 6px 0 2px; }

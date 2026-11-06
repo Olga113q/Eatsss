@@ -4,7 +4,7 @@ const VERSION = "v3";
 const APP = "app-" + VERSION;
 const IMG = "img-" + VERSION;
 const SHELL = ["./", "index.html", "app.js", "planner.js", "app-update.js", "style.css", "manifest.webmanifest",
-  "manage.html", "manage.js", "recipe-edits.js",
+  "manage.html", "manage.js", "recipe-edits.js", "recipe-prefs.js",
   "data/recipes.js", "data/steps.js", "data/plan.js", "data/images.js", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

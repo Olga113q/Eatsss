@@ -20,6 +20,12 @@
 <main class="manage-main">
   <p class="muted manage-hint">Все рецепты базы. «Скрыть» — рецепт больше не предлагается ни в подборе, ни в плане на неделю.
     «Изменить» — название, раздел, порции, ингредиенты и шаги. Изменения хранятся на этом устройстве.</p>
+  <details id="m-prefs" class="m-prefs" open>
+    <summary>🚫 Мне не подходит</summary>
+    <div id="m-prefs-body"></div>
+    <p class="muted">Такие рецепты не предлагаются ни в подборе, ни в плане. Список — на вкладке «Не подходят»,
+      там же можно вернуть отдельный рецепт («Всё равно показывать»).</p>
+  </details>
   <input id="m-search" type="search" placeholder="Поиск: название или ингредиент (курица, гречка…)" autocomplete="off">
   <div id="m-tabs" class="m-tabs"></div>
   <div id="m-summary" class="summary"></div>
@@ -38,6 +44,8 @@
 <script src="data/recipes.js"></script>
 <script src="recipe-edits.js"></script>
 <script src="data/images.js" onerror="void 0"></script>
+<script src="data/plan.js" onerror="void 0"></script>
+<script src="recipe-prefs.js" onerror="void 0"></script>
 <script src="manage.js"></script>
 <script src="app-update.js" onerror="void 0"></script>
 <script>

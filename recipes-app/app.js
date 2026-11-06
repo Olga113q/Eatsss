@@ -20,7 +20,7 @@
       addScript("data/recipes.js?r=" + Date.now())
         .then(() => {
           if (!window.RECIPE_DATA) throw new Error("файл скачался, но рецептов в нём нет");
-          return addScript("recipe-edits.js?r=" + Date.now())
+          return addScript("recipe-edits.js?r=" + Date.now()).then(() => addScript("recipe-prefs.js?r=" + Date.now()))
             .then(() => addScript("app.js?r=" + Date.now())).then(() => addScript("planner.js?r=" + Date.now()));
         })
         .catch((e) => showProblem(String(e.message || e)));
@@ -406,7 +406,7 @@
     results = [];
     for (const r of RECIPES) {
       // внутри одного фильтра — «любое из отмеченного», между фильтрами — «и»
-      if (r.h) continue; // скрыт на странице «Мои рецепты»
+      if (r.h || r.d) continue; // скрыт или «мне не подходит» (страница «Мои рецепты»)
       if (courses.size && !courses.has(r.course)) continue;
       if (mealsOnly && r.minor && !baseChosen) continue;
       if (cuisines.size && !cuisines.has(r.cuisine)) continue;
@@ -447,6 +447,12 @@
     $("to-results").textContent = `Показать рецепты (${n})`;
   }
 
+  // примерная цена блюда (recipe-prefs.js): «≈120 ₽/порц.»
+  const costTag = (rid) => {
+    const c = window.recipeCost && window.recipeCost(rid);
+    return c ? ` · <span class="cost">${window.fmtCost(c)}</span>` : "";
+  };
+
   function card({ r, missing, matched, total }) {
     const pct = total ? Math.round((matched / total) * 100) : 100;
     const miss = missing.map((pid) => esc(PRODUCTS[pid].name)).join(", ");
@@ -457,7 +463,7 @@
         <h3>${esc(r.t)}</h3>
         <button class="star ${favs.has(r.id) ? "on" : ""}" data-fav="${r.id}" title="В избранное">★</button>
       </div>
-      <div class="meta">${[r.course, r.cuisine, r.tm && "⏱ " + r.tm, r.k && r.k + " ккал/порц."].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="meta">${[r.course, r.cuisine, r.tm && "⏱ " + r.tm, r.k && r.k + " ккал/порц."].filter(Boolean).map(esc).join(" · ")}${costTag(r.id)}</div>
       <div class="bar"><span style="width:${pct}%"></span></div>
       <div class="have-line">Есть ${matched} из ${total}</div>
       ${missing.length ? `<div class="miss">Не хватает: ${miss}</div>` : '<div class="ok">✓ Всё есть</div>'}
@@ -551,6 +557,11 @@
         </span>
       </h3>
       ${serv !== base ? `<p class="muted">Количества пересчитаны с ${base} ${plural(base, "порции", "порций", "порций")} в рецепте на ${serv}.</p>` : ""}
+      ${(() => {
+        const c = window.recipeCost && window.recipeCost(r.id);
+        return c ? `<p class="cost-line">Примерная стоимость: <b>≈${Math.round((c.per * serv) / 10) * 10} ₽</b> на ${serv} ${plural(serv, "порцию", "порции", "порций")}
+          (≈${Math.round(c.per / 10) * 10} ₽ за порцию)${c.partial ? " — без пары продуктов, для которых нет цены" : ""}. По самым дешёвым ценам Магнита и Ozon Fresh, за нужное количество, а не за целые упаковки.</p>` : "";
+      })()}
       <ul class="ings">${rows}</ul>
       <h3>Приготовление</h3>
       ${stepsHtml(r)}`;

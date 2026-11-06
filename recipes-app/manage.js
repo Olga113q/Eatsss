@@ -52,7 +52,8 @@
       const isHidden = hidden.has(key);
       if (tab === "hidden") { if (!isHidden) return false; }
       else if (tab === "edited") { if (!edits[key]) return false; }
-      else if (isHidden) return false;
+      else if (tab === "nofit") { if (!r.d || isHidden) return false; }
+      else if (isHidden || r.d) return false;
       else if (tab !== "all" && courseOf(r) !== tab) return false;
       if (!q) return true;
       return lc(r.t).includes(q) || mainIngs(r).some((n) => lc(n).includes(q));
@@ -63,10 +64,16 @@
 
   function renderTabs() {
     const count = new Map();
-    for (const { r, key } of ALL) if (!hidden.has(key)) count.set(courseOf(r), (count.get(courseOf(r)) || 0) + 1);
+    let shownAll = 0, nofit = 0;
+    for (const { r, key } of ALL) {
+      if (hidden.has(key)) continue;
+      if (r.d) { nofit++; continue; }
+      shownAll++;
+      count.set(courseOf(r), (count.get(courseOf(r)) || 0) + 1);
+    }
     const nEdited = Object.keys(edits).length;
-    const tabs = [["all", "Все", ALL.length - hidden.size], ...COURSES.map((c) => [c, `${ICON[c] || "🍽️"} ${c}`, count.get(c) || 0]),
-      ["hidden", "🙈 Скрытые", hidden.size], ["edited", "✏️ Изменённые", nEdited]];
+    const tabs = [["all", "Все", shownAll], ...COURSES.map((c) => [c, `${ICON[c] || "🍽️"} ${c}`, count.get(c) || 0]),
+      ["nofit", "🚫 Не подходят", nofit], ["hidden", "🙈 Скрытые", hidden.size], ["edited", "✏️ Изменённые", nEdited]];
     $("m-tabs").innerHTML = tabs.filter(([id, , n]) => n || id === tab || id === "all")
       .map(([id, name, n]) => `<button class="m-tab ${id === tab ? "on" : ""}" data-tab="${esc(id)}">${esc(name)} <span>${n}</span></button>`).join("");
   }
@@ -78,11 +85,14 @@
       ${pic(r)}
       <div class="mbody">
         <h3>${esc(r.t)}${edits[key] ? ' <span class="badge-ed">изменён</span>' : ""}</h3>
-        <div class="meta">${[courseOf(r), r.tm && "⏱ " + r.tm, r.n && r.n + " порц."].filter(Boolean).map(esc).join(" · ")}</div>
+        <div class="meta">${[courseOf(r), r.tm && "⏱ " + r.tm, r.n && r.n + " порц."].filter(Boolean).map(esc).join(" · ")}${
+          window.recipeCost && window.recipeCost(id) ? ` · <span class="cost">${window.fmtCost(window.recipeCost(id))}</span>` : ""}</div>
+        ${r.d ? `<div class="nofit">🚫 ${esc(r.d)}</div>` : ""}
         <div class="m-ings">${ings.slice(0, 8).map((n) => `<span>${esc(n)}</span>`).join("")}${ings.length > 8 ? `<span class="more-ings">+${ings.length - 8}</span>` : ""}</div>
         <div class="m-actions">
           <button data-act="edit">✏️ Изменить</button>
-          <button data-act="hide">${isHidden ? "👁 Вернуть" : "🙈 Скрыть"}</button>
+          ${r.d && !isHidden ? '<button data-act="allow">✅ Всё равно показывать</button>'
+            : `<button data-act="hide">${isHidden ? "👁 Вернуть" : "🙈 Скрыть"}</button>`}
         </div>
       </div>
     </article>`;
@@ -98,6 +108,21 @@
   }
 
   const refresh = () => { shown = PAGE; filterItems(); render(); };
+
+  // «Мне не подходит»: переключатели правил (recipe-prefs.js). Правила пересчитываются при загрузке — перезагружаем.
+  if (window.RECIPE_PREFS) {
+    const pr = window.RECIPE_PREFS.prefs();
+    $("m-prefs-body").innerHTML = window.RECIPE_PREFS.RULES.map(([id, name]) =>
+      `<label class="pref"><input type="checkbox" data-pref="${id}" ${pr[id] ? "checked" : ""}> ${esc(name)}</label>`).join("");
+    $("m-prefs-body").addEventListener("change", (e) => {
+      const id = e.target.dataset.pref;
+      if (!id) return;
+      window.RECIPE_PREFS.setPref(id, e.target.checked);
+      location.reload();
+    });
+  } else {
+    $("m-prefs").hidden = true;
+  }
 
   $("m-search").addEventListener("input", refresh);
   $("m-tabs").addEventListener("click", (e) => {
@@ -119,6 +144,13 @@
     if (!el) return;
     const x = ALL[+el.dataset.id];
     const act = e.target.closest("[data-act]")?.dataset.act;
+    if (act === "allow") {
+      window.RECIPE_PREFS.allow(x.key, true);
+      delete x.r.d; // правила больше не скрывают этот рецепт
+      filterItems();
+      render();
+      return;
+    }
     if (act === "hide") {
       toggleHidden(x);
       // в обычной вкладке скрытый рецепт пропадает из списка (вкладка «Скрытые» — чтобы вернуть)

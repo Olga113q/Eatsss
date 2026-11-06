@@ -279,7 +279,7 @@
     const maxT = +settings.maxTime || Infinity;
     const diet = DIETS[settings.diet];
     return RECIPES.filter((r) => {
-      if (r.h) return false; // скрыт на странице «Мои рецепты»
+      if (r.h || r.d) return false; // скрыт или «мне не подходит» (страница «Мои рецепты»)
       if (r.minor || !f(r) || !isMeal(meal, r)) return false;
       if (meal !== "breakfast" && r.k && r.k < 200) return false; // слишком лёгкое для обеда/ужина
       if (meal !== "breakfast" && r.course !== "Супы") {
