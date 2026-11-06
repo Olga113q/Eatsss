@@ -90,11 +90,10 @@ def main(path):
         "recipes": recipes,
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w", encoding="utf-8") as f:
-        f.write("window.RECIPE_DATA=")
-        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
-        f.write(";\n")
-    print(f"рецептов: {len(recipes)}, продуктов: {len(products)}, файл: {os.path.getsize(OUT) / 1e6:.1f} МБ")
+    # шаги — в отдельный data/steps.js (догружается в фоне), чтобы recipes.js был маленьким и сайт стартовал быстро
+    from split_steps import write_split
+    write_split(data, os.path.dirname(OUT))
+    print(f"рецептов: {len(recipes)}, продуктов: {len(products)}")
     by_cat = collections.Counter(p[1] for p in products)
     print(dict(by_cat))
 

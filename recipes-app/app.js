@@ -124,7 +124,7 @@
     // «не блюдо»: напитки, соусы, заготовки, основы (тесто, крем, глазурь…) и совсем простые рецепты
     const isBase = BASE_COURSES.has(course) || BASE_TITLE.test(lc) || /тесто для|основа для|для пиццы$/.test(lc);
     const isSimple = reqU.length < MIN_INGREDIENTS;
-    const textLen = r.s.reduce((n, st) => n + st.length, 0);
+    const textLen = r.sl ?? (r.s || []).reduce((n, st) => n + st.length, 0);
     return { ...r, id, course, cuisine, tags: r.c.slice(1).map((t) => t.replace(/\s+/g, " ").trim()), sweet: sweetIdx(r) > 0 && !r.i.some(([pid, , , o]) => !o && isSavory(pid)), req: reqU, opt, lc, minor: isBase || isSimple, textLen };
   });
 
@@ -551,9 +551,37 @@
       ${serv !== base ? `<p class="muted">Количества пересчитаны с ${base} ${plural(base, "порции", "порций", "порций")} в рецепте на ${serv}.</p>` : ""}
       <ul class="ings">${rows}</ul>
       <h3>Приготовление</h3>
-      <ol class="steps">${r.s.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`;
+      ${stepsHtml(r)}`;
     if (!modal.open) modal.showModal();
   }
+
+  // Шаги приготовления лежат в отдельном data/steps.js (~2/3 объёма базы): он догружается в фоне после старта,
+  // чтобы подбор рецептов заработал быстрее. Окно рецепта, открытое раньше, дорисует шаги само.
+  let stepsPromise = null;
+  function loadSteps() {
+    if (window.RECIPE_STEPS) return Promise.resolve();
+    if (!stepsPromise) {
+      stepsPromise = new Promise((ok, bad) => {
+        const s = document.createElement("script");
+        s.src = "data/steps.js";
+        s.onload = () => (window.RECIPE_STEPS ? ok() : bad(new Error("пустой steps.js")));
+        s.onerror = () => bad(new Error("не скачался steps.js"));
+        document.body.appendChild(s);
+      }).catch((e) => { stepsPromise = null; throw e; }); // при следующем открытии попробуем снова
+    }
+    return stepsPromise;
+  }
+  function stepsHtml(r) {
+    const steps = r.s || window.RECIPE_STEPS?.[r.id];
+    if (steps) return `<ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`;
+    const id = r.id;
+    loadSteps().then(
+      () => { if (modal.open && openRid === id) openRecipe(id); },
+      () => { if (modal.open && openRid === id) $("steps-wait").textContent = "Не удалось загрузить шаги — проверьте интернет и откройте рецепт снова."; },
+    );
+    return '<p class="muted" id="steps-wait">Загружаю шаги…</p>';
+  }
+  setTimeout(() => loadSteps().catch(() => {}), 2000);
 
   $("modal-body").addEventListener("click", (e) => {
     const sv = e.target.closest("[data-serv]");
